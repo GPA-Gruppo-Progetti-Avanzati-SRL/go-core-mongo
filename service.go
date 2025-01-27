@@ -97,7 +97,7 @@ func getPoolMonitor(poolMetric *poolMetric) *event.PoolMonitor {
 
 	return &event.PoolMonitor{
 		Event: func(e *event.PoolEvent) {
-			log.Debug().Str("type", e.Type).Str("duration", e.Duration.String()).Str("address", e.Address).Msg("event from mongo pool")
+			//log.Debug().Str("type", e.Type).Str("duration", e.Duration.String()).Str("address", e.Address).Msg("event from mongo pool")
 
 			attributes := attribute.String("address", e.Address)
 
