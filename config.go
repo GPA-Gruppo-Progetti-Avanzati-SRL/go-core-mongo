@@ -14,6 +14,7 @@ type Config struct {
 		MaxConn               *uint64        `mapstructure:"max-conn" json:"max-conn" yaml:"max-conn"`
 		MaxWaitTime           *time.Duration `mapstructure:"max-wait-time" json:"max-wait-time" yaml:"max-wait-time"`
 		MaxConnectionIdleTime *time.Duration `mapstructure:"max-conn-idle-time" json:"max-conn-idle-time" yaml:"max-conn-idle-time"`
+		MaxConnecting         *uint64        `mapstructure:"max-connecting" json:"max-connecting" yaml:"max-connecting"`
 	}
 	WriteConcern           string         `mapstructure:"write-concern" json:"write-concern" yaml:"write-concern"`
 	ReadConcern            string         `mapstructure:"read-concern" json:"read-concern" yaml:"read-concern"`

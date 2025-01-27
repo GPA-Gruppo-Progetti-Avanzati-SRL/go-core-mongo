@@ -3,9 +3,10 @@ package mongo
 import (
 	"context"
 	"crypto/tls"
-	"go.uber.org/fx"
 	"strconv"
 	"time"
+
+	"go.uber.org/fx"
 
 	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app"
 	mongoprom "github.com/globocom/mongo-go-prometheus"
@@ -17,11 +18,14 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/writeconcern"
 	"go.opentelemetry.io/contrib/instrumentation/go.mongodb.org/mongo-driver/mongo/otelmongo"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 )
 
 type Service struct {
-	client   *mongo.Client
-	Database *mongo.Database
+	client     *mongo.Client
+	Database   *mongo.Database
+	poolMetric *poolMetric
 }
 
 var DefaultWriteConcern = writeconcern.Majority()
@@ -52,11 +56,14 @@ func EvalWriteConcern(wstr string) *writeconcern.WriteConcern {
 func NewService(config *Config, lc fx.Lifecycle) *Service {
 
 	mongoService := &Service{}
-	opts := configureMongo(config)
+
+	mongoService.poolMetric = &poolMetric{}
+	mongoService.poolMetric.init()
 
 	lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
 			var err error
+			opts := configureMongo(config, mongoService.poolMetric)
 			mongoService.client, err = mongo.Connect(ctx, opts)
 			mongoService.Database = mongoService.client.Database(config.Database)
 			if err != nil {
@@ -86,39 +93,65 @@ func NewService(config *Config, lc fx.Lifecycle) *Service {
 
 }
 
-func getPoolMonitor() *event.PoolMonitor {
+func getPoolMonitor(poolMetric *poolMetric) *event.PoolMonitor {
 
 	return &event.PoolMonitor{
 		Event: func(e *event.PoolEvent) {
+			log.Debug().Str("type", e.Type).Str("duration", e.Duration.String()).Str("address", e.Address).Msg("event from mongo pool")
+
+			attributes := attribute.String("address", e.Address)
+
+			attributesSet := attribute.NewSet(attributes)
+
 			switch e.Type {
+			// Created when an operation successfully acquires a connection for execution.
+			// Have duration
 			case event.GetSucceeded:
-				//TODO
+				poolMetric.TimeToAcquireConnection.Record(context.Background(), e.Duration.Microseconds(), metric.WithAttributeSet(attributesSet))
 
-				//TODO
-				//Duration e count
 				break
 
+			// Created when a connection is checked back into the pool after an operation is executed.
+			// Do not have duration
 			case event.ConnectionReturned:
-				//TODO
-				//Duration e count
+				poolMetric.TotalReturnedConnection.Add(context.Background(), 1, metric.WithAttributeSet(attributesSet))
+
 				break
 
+			// Created when a connection is created, but not necessarily when it is used for an operation.
+			// Do not have duration
 			case event.ConnectionCreated:
 				break
-			case event.ConnectionClosed:
+
+			// Created after a connection completes a handshake and is ready to be used for operations.
+			// Have duration
+			case event.ConnectionReady:
+				poolMetric.TimeToReadyConnection.Record(context.Background(), e.Duration.Microseconds(), metric.WithAttributeSet(attributesSet))
+				poolMetric.ActiveConnection.Add(context.Background(), 1, metric.WithAttributeSet(attributesSet))
 				break
+
+			// Created when a connection is closed.
+			case event.ConnectionClosed:
+				poolMetric.TotalCloseConnection.Add(context.Background(), 1, metric.WithAttributeSet(attributesSet))
+				poolMetric.ActiveConnection.Add(context.Background(), -1, metric.WithAttributeSet(attributesSet))
+				break
+			// Created when a connection pool is ready.
+			// No connection seems to be created before this event
 			case event.PoolReady:
-				log.Debug().Msg("Mongo Pool is ready")
-				//TODO metrica duration
+				break
+
+			// Created when an operation cannot acquire a connection for execution.
 			case event.GetFailed:
+				poolMetric.TotalFailedAcquireConnection.Add(context.Background(), 1, metric.WithAttributeSet(attributesSet))
 				log.Error().Msg("Mongo Get Failed")
+				break
 
 			}
 		},
 	}
 }
 
-func configureMongo(cfg *Config) *options.ClientOptions {
+func configureMongo(cfg *Config, pollMetric *poolMetric) *options.ClientOptions {
 	opts := options.Client()
 
 	opts.Monitor = combineMonitors(
@@ -128,7 +161,8 @@ func configureMongo(cfg *Config) *options.ClientOptions {
 			mongoprom.WithNamespace(""),
 		),
 	)
-	opts.PoolMonitor = getPoolMonitor()
+	opts.PoolMonitor = getPoolMonitor(pollMetric)
+
 	opts.ApplyURI(cfg.Server).
 		SetWriteConcern(EvalWriteConcern(cfg.WriteConcern))
 
@@ -254,6 +288,10 @@ func setConnectionPoolSettings(cfg *Config, opts *options.ClientOptions) {
 	if cfg.Pool.MaxWaitTime != nil {
 		opts.SetConnectTimeout(*cfg.Pool.MaxWaitTime)
 	}
+	if cfg.Pool.MaxConnecting != nil {
+		opts.SetMaxConnecting(*cfg.Pool.MaxConnecting)
+	}
+
 }
 
 func (ms *Service) ExecTransaction(ctx context.Context, transaction func(sessCtx mongo.SessionContext) error) *core.ApplicationError {
