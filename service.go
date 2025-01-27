@@ -86,6 +86,38 @@ func NewService(config *Config, lc fx.Lifecycle) *Service {
 
 }
 
+func getPoolMonitor() *event.PoolMonitor {
+
+	return &event.PoolMonitor{
+		Event: func(e *event.PoolEvent) {
+			switch e.Type {
+			case event.GetSucceeded:
+				//TODO
+
+				//TODO
+				//Duration e count
+				break
+
+			case event.ConnectionReturned:
+				//TODO
+				//Duration e count
+				break
+
+			case event.ConnectionCreated:
+				break
+			case event.ConnectionClosed:
+				break
+			case event.PoolReady:
+				log.Debug().Msg("Mongo Pool is ready")
+				//TODO metrica duration
+			case event.GetFailed:
+				log.Error().Msg("Mongo Get Failed")
+
+			}
+		},
+	}
+}
+
 func configureMongo(cfg *Config) *options.ClientOptions {
 	opts := options.Client()
 
@@ -96,7 +128,7 @@ func configureMongo(cfg *Config) *options.ClientOptions {
 			mongoprom.WithNamespace(""),
 		),
 	)
-
+	opts.PoolMonitor = getPoolMonitor()
 	opts.ApplyURI(cfg.Server).
 		SetWriteConcern(EvalWriteConcern(cfg.WriteConcern))
 
