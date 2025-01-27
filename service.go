@@ -58,7 +58,7 @@ func NewService(config *Config, lc fx.Lifecycle) *Service {
 	mongoService := &Service{}
 
 	mongoService.poolMetric = &poolMetric{}
-	mongoService.poolMetric.init()
+	mongoService.poolMetric.init(config.MetricConfig)
 
 	lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {

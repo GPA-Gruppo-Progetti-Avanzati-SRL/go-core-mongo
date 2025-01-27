@@ -28,9 +28,17 @@ type Config struct {
 	Compressor             []string       `mapstructure:"compressor" json:"compressor" yaml:"compressor"`
 	ZlibLevel              *int           `mapstructure:"zlib-level" json:"zlib-level" yaml:"zlib-level"`
 	ZstdLevel              *int           `mapstructure:"zstd-level" json:"zstd-level" yaml:"zstd-level"`
+	MetricConfig           MetricConfig   `mapstructure:"metrics" json:"metrics" yaml:"metrics"`
 }
 
 type TLSConfig struct {
 	CaLocation string `json:"ca-location" mapstructure:"ca-location" yaml:"ca-location"`
 	SkipVerify bool   `json:"skip-verify" mapstructure:"skip-verify" yaml:"skip-verify"`
+}
+
+type MetricConfig struct {
+	Buckets struct {
+		ConnectionTimeReady       *[]float64 `mapstructure:"connection-time-ready" json:"connection-time-ready" yaml:"connection-time-ready"`
+		ConnectionPoolTimeAcquire *[]float64 `mapstructure:"connection-pool-time-acquire" json:"connection-pool-time-acquire" yaml:"connection-pool-time-acquire"`
+	} `mapstructure:"buckets" json:"buckets" yaml:"buckets"`
 }
