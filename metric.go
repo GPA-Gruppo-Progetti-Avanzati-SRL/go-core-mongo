@@ -11,7 +11,8 @@ var DefaultTimeToReadyConnectionBuckets = []float64{100, 1000, 10_000, 100_000, 
 var DefaultPoolTimeAcquireBucket = []float64{0, 5, 10, 25, 50, 75, 100, 250, 500, 750, 1000, 2500, 5000, 7500, 10000}
 
 type poolMetric struct {
-	ActiveConnection metric.Int64UpDownCounter
+	AliveConnection metric.Int64UpDownCounter
+	UsedConnection  metric.Int64UpDownCounter
 
 	TimeToReadyConnection   metric.Int64Histogram
 	TotalCloseConnection    metric.Int64Counter
@@ -33,7 +34,9 @@ func (m *poolMetric) init(metricConfig MetricConfig) {
 		TimeToReadyConnectionBuckets = *metricConfig.Buckets.ConnectionTimeReady
 	}
 
-	m.ActiveConnection, _ = otelMeter.Int64UpDownCounter("mongo.connection.active", metric.WithDescription("Total active connection in the pool"))
+	m.AliveConnection, _ = otelMeter.Int64UpDownCounter("mongo.connection.alive", metric.WithDescription("Total alive connection in the pool"))
+
+	m.UsedConnection, _ = otelMeter.Int64UpDownCounter("mongo.connection.used", metric.WithDescription("Total used connections successfully obtained from the connection pool"))
 
 	m.TimeToReadyConnection, _ = otelMeter.Int64Histogram("mongo.connection.time.ready",
 		metric.WithUnit("us"),

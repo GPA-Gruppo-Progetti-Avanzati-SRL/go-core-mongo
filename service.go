@@ -6,9 +6,9 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app"
 	"go.uber.org/fx"
 
-	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app"
 	mongoprom "github.com/globocom/mongo-go-prometheus"
 	"github.com/rs/zerolog/log"
 	"go.mongodb.org/mongo-driver/event"
@@ -97,7 +97,7 @@ func getPoolMonitor(poolMetric *poolMetric) *event.PoolMonitor {
 
 	return &event.PoolMonitor{
 		Event: func(e *event.PoolEvent) {
-			//log.Debug().Str("type", e.Type).Str("duration", e.Duration.String()).Str("address", e.Address).Msg("event from mongo pool")
+			//log.Debug().Str("type", e.Type).Str("duration", e.Duration.String()).Str("address", e.Address).Str("id", fmt.Sprint(e.ConnectionID)).Msg("event from mongo pool")
 
 			attributes := attribute.String("address", e.Address)
 
@@ -108,32 +108,33 @@ func getPoolMonitor(poolMetric *poolMetric) *event.PoolMonitor {
 			// Have duration
 			case event.GetSucceeded:
 				poolMetric.TimeToAcquireConnection.Record(context.Background(), e.Duration.Microseconds(), metric.WithAttributeSet(attributesSet))
-
+				poolMetric.UsedConnection.Add(context.Background(), 1, metric.WithAttributeSet(attributesSet))
 				break
 
 			// Created when a connection is checked back into the pool after an operation is executed.
 			// Do not have duration
 			case event.ConnectionReturned:
 				poolMetric.TotalReturnedConnection.Add(context.Background(), 1, metric.WithAttributeSet(attributesSet))
-
+				poolMetric.UsedConnection.Add(context.Background(), -1, metric.WithAttributeSet(attributesSet))
 				break
 
 			// Created when a connection is created, but not necessarily when it is used for an operation.
 			// Do not have duration
 			case event.ConnectionCreated:
+				// Connections created can be closed even if they do not reach the 'ready' state."
+				poolMetric.AliveConnection.Add(context.Background(), 1, metric.WithAttributeSet(attributesSet))
 				break
 
 			// Created after a connection completes a handshake and is ready to be used for operations.
 			// Have duration
 			case event.ConnectionReady:
 				poolMetric.TimeToReadyConnection.Record(context.Background(), e.Duration.Microseconds(), metric.WithAttributeSet(attributesSet))
-				poolMetric.ActiveConnection.Add(context.Background(), 1, metric.WithAttributeSet(attributesSet))
 				break
 
 			// Created when a connection is closed.
 			case event.ConnectionClosed:
 				poolMetric.TotalCloseConnection.Add(context.Background(), 1, metric.WithAttributeSet(attributesSet))
-				poolMetric.ActiveConnection.Add(context.Background(), -1, metric.WithAttributeSet(attributesSet))
+				poolMetric.AliveConnection.Add(context.Background(), -1, metric.WithAttributeSet(attributesSet))
 				break
 			// Created when a connection pool is ready.
 			// No connection seems to be created before this event
@@ -143,6 +144,9 @@ func getPoolMonitor(poolMetric *poolMetric) *event.PoolMonitor {
 			// Created when an operation cannot acquire a connection for execution.
 			case event.GetFailed:
 				poolMetric.TotalFailedAcquireConnection.Add(context.Background(), 1, metric.WithAttributeSet(attributesSet))
+				// ConnectionCheckOutStarted -> ConnectionCheckOutFailed quindi non serve se ascoltiamo ConnectionCheckedOut e ConnectionCheckedIn
+				//poolMetric.UsedConnection.Add(context.Background(), -1, metric.WithAttributeSet(attributesSet))
+
 				log.Error().Msg("Mongo Get Failed")
 				break
 
