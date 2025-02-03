@@ -3,7 +3,7 @@ module github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-mongo
 go 1.23.2
 
 require (
-	github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app v0.0.0-20250129110949-cf9cf54b91f7
+	github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app v0.0.1
 	github.com/globocom/mongo-go-prometheus v0.1.1
 	github.com/rs/zerolog v1.33.0
 	go.mongodb.org/mongo-driver v1.17.2
@@ -14,7 +14,7 @@ require (
 )
 
 require (
-	github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-common v0.1.69 // indirect
+	github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-common v0.1.74 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
