@@ -18,7 +18,7 @@ func (a *Aggregation) GenerateAggregation(params map[string]any) (mongo.Pipeline
 	mp := make(mongo.Pipeline, 0)
 	for _, step := range a.Steps {
 
-		fparams, ok := params[step.Name]
+		fparams, ok := params[step.Key]
 
 		var s bson.D
 		var errG *core.ApplicationError
@@ -40,7 +40,7 @@ func (a *Aggregation) GenerateAggregation(params map[string]any) (mongo.Pipeline
 var builder = filterbuilder.NewBuilder()
 
 type Step struct {
-	Name     string         `mapstructure:"name" json:"name" yaml:"name"`
+	Key      string         `mapstructure:"key" json:"key" yaml:"key"`
 	Function string         `mapstructure:"function" json:"function" yaml:"function"`
 	Args     map[string]any `mapstructure:"args" json:"args" yaml:"args"`
 }
