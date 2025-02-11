@@ -10,6 +10,8 @@ github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-common v0.1.69 h1:FN1dV0I3b07sqQ
 github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-common v0.1.69/go.mod h1:vnI1W77dpctWxMspokeoSVbGAOaU66mKfnCOyyoEYWQ=
 github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-common v0.1.74 h1:NZSeYlua4+fmwSZui0wDIS40/SfOlufjPTtn8N46ySY=
 github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-common v0.1.74/go.mod h1:4WYfJ0LgWLu38TukgFrFN4/zLePQ1BhFkpH/k28zRlA=
+github.com/Kamran151199/mongo-filter-struct v0.0.0-20220818202535-aed8f381d7c0 h1:eKqFQdpZF0CTxrHTLtrrveFHGTDWH69am09ygVAguQk=
+github.com/Kamran151199/mongo-filter-struct v0.0.0-20220818202535-aed8f381d7c0/go.mod h1:fl+Q0UVfomhicWm+DWK6HUqOtpVWnGYoi28pWNfAcAI=
 github.com/alecthomas/template v0.0.0-20160405071501-a0175ee3bccc/go.mod h1:LOuyumcjzFXgccqObfd/Ljyb9UuFJ6TxHnclSeseNhc=
 github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751/go.mod h1:LOuyumcjzFXgccqObfd/Ljyb9UuFJ6TxHnclSeseNhc=
 github.com/alecthomas/units v0.0.0-20151022065526-2efee857e7cf/go.mod h1:ybxpYRFXyAe+OPACYpWeL0wqObRcbAqCMya13uyzqw0=

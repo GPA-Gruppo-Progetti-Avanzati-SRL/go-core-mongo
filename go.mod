@@ -15,6 +15,7 @@ require (
 
 require (
 	github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-common v0.1.74 // indirect
+	github.com/Kamran151199/mongo-filter-struct v0.0.0-20220818202535-aed8f381d7c0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect

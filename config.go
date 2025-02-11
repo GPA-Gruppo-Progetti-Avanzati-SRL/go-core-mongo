@@ -1,6 +1,8 @@
 package mongo
 
-import "time"
+import (
+	"time"
+)
 
 type Config struct {
 	Server        string `yaml:"server" mapstructure:"server" json:"server"`
@@ -29,6 +31,7 @@ type Config struct {
 	ZlibLevel              *int           `mapstructure:"zlib-level" json:"zlib-level" yaml:"zlib-level"`
 	ZstdLevel              *int           `mapstructure:"zstd-level" json:"zstd-level" yaml:"zstd-level"`
 	MetricConfig           MetricConfig   `mapstructure:"metrics" json:"metrics" yaml:"metrics"`
+	Aggregations           []*Aggregation `mapstructure:"aggregations" json:"aggregations" yaml:"aggregations"`
 }
 
 type TLSConfig struct {
