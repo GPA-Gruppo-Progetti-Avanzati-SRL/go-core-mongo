@@ -13,6 +13,7 @@ import (
 
 	mongoprom "github.com/globocom/mongo-go-prometheus"
 	"github.com/rs/zerolog/log"
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/event"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -97,7 +98,7 @@ func NewService(config *Config, lc fx.Lifecycle) *Service {
 	for _, v := range config.Aggregations {
 		Aggregations[v.Name] = v
 	}
-	fmt.Printf("%+v", Aggregations[config.Aggregations[0].Name])
+
 	return mongoService
 
 }
@@ -348,9 +349,14 @@ func (ms *Service) ExecuteAggregation(ctx context.Context, name string, params m
 		return nil, core.BusinessErrorWithCodeAndMessage("NOT-FOUND", fmt.Sprintf("aggregation '%s' not found", name))
 	}
 	mp, err := GenerateAggregation(aggregation, params)
+
 	if err != nil {
 		return nil, err
 	}
+
+	value := MongoPipelineToJson(mp)
+
+	log.Trace().Msg(string(value))
 	cur, errAgg := ms.Database.Collection(aggregation.Collection).Aggregate(ctx, mp, opts...)
 	if errAgg != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
@@ -359,4 +365,17 @@ func (ms *Service) ExecuteAggregation(ctx context.Context, name string, params m
 		return nil, core.TechnicalErrorWithError(errAgg)
 	}
 	return cur, nil
+}
+
+func MongoPipelineToJson(pipeline interface{}) string {
+
+	mappa := bson.M{"pipeline": pipeline}
+
+	value, err := bson.MarshalExtJSON(mappa, false, false)
+
+	if err != nil {
+		return ""
+	}
+	return string(value)
+
 }

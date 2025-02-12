@@ -1,8 +1,9 @@
 package mongo
 
 import (
+	"fmt"
+
 	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app"
-	filterbuilder "github.com/Kamran151199/mongo-filter-struct"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 )
@@ -19,8 +20,6 @@ type Step struct {
 }
 
 var stepGenerators map[string]GenerateStep
-
-var filterBuilder = filterbuilder.NewBuilder()
 
 func init() {
 	stepGenerators = map[string]GenerateStep{
@@ -61,21 +60,30 @@ func unionWith(function string, args map[string]interface{}, params any) (bson.D
 
 	pipelineName, okP := args["pipeline"].(string)
 	if !okP {
-		return nil, core.TechnicalErrorWithCodeAndMessage("", "pipeline not found")
+		return nil, core.TechnicalErrorWithCodeAndMessage("", fmt.Sprintf("pipeline %s not found", pipelineName))
 	}
 	a, okA := Aggregations[pipelineName]
 	if !okA {
-		return nil, core.TechnicalErrorWithCodeAndMessage("", "aggregation not found")
+		return nil, core.TechnicalErrorWithCodeAndMessage("", fmt.Sprintf("aggregation %s not found", pipelineName))
 	}
-	mp, err := GenerateAggregation(a, params.(map[string]interface{}))
+
+	var paramsCast map[string]interface{} = nil
+
+	// handle the case if the params is nil
+	resultCast, ok := params.(map[string]interface{})
+	if ok {
+		paramsCast = resultCast
+	}
+
+	mp, err := GenerateAggregation(a, paramsCast)
 
 	if err != nil {
 		return nil, err
 	}
 
-	return bson.D{{Key: function, Value: bson.A{
-		bson.D{{Key: "coll", Value: a.Collection}},
-		bson.D{{Key: "pipeline", Value: mp}},
+	return bson.D{{Key: function, Value: bson.M{
+		"coll":     a.Collection,
+		"pipeline": mp,
 	}}}, nil
 
 }
@@ -88,7 +96,8 @@ func simpleArgs(function string, args map[string]interface{}, params any) (bson.
 	return bson.D{{Key: function, Value: args}}, nil
 }
 func match(function string, args map[string]interface{}, params any) (bson.D, *core.ApplicationError) {
-	filterM, err := filterBuilder.BuildQuery(params)
+	filterM, err := buildFilter(params)
+
 	if err != nil {
 		return nil, core.TechnicalErrorWithError(err)
 	}

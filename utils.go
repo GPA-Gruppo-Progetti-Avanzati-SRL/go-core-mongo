@@ -81,7 +81,7 @@ func (ms *Service) UpdateSingleRecord(ctx context.Context, collectionName string
 	collectionRicorrenza := ms.Database.Collection(collectionName)
 	resR, err := collectionRicorrenza.UpdateOne(ctx, filterR, updateR)
 	if err != nil {
-		log.Error().Err(err).Msgf("Impoossibile aggiornare %s, %s", err.Error())
+		log.Error().Err(err).Msgf("Impossibile aggiornare")
 		return err
 	}
 	if resR.ModifiedCount != 1 {
