@@ -12,21 +12,39 @@ type Aggregation struct {
 	Collection string  `mapstructure:"collection" json:"collection" yaml:"collection"`
 	Steps      []*Step `mapstructure:"steps" json:"steps" yaml:"steps"`
 }
+type Step struct {
+	Key      string         `mapstructure:"key" json:"key" yaml:"key"`
+	Function string         `mapstructure:"function" json:"function" yaml:"function"`
+	Args     map[string]any `mapstructure:"args" json:"args" yaml:"args"`
+}
 
-func (a *Aggregation) GenerateAggregation(params map[string]any) (mongo.Pipeline, *core.ApplicationError) {
+var stepGenerators map[string]GenerateStep
+
+var filterBuilder = filterbuilder.NewBuilder()
+
+func init() {
+	stepGenerators = map[string]GenerateStep{
+
+		"$skip":      simpleParams,
+		"$limit":     simpleParams,
+		"$project":   simpleArgs,
+		"$sort":      simpleArgs,
+		"$match":     match,
+		"$unionWith": unionWith,
+	}
+}
+
+func GenerateAggregation(a *Aggregation, params map[string]any) (mongo.Pipeline, *core.ApplicationError) {
 
 	mp := make(mongo.Pipeline, 0)
 	for _, step := range a.Steps {
 
-		fparams, ok := params[step.Key]
-
-		var s bson.D
-		var errG *core.ApplicationError
+		fparams := params[step.Key]
+		gs, ok := stepGenerators[step.Function]
 		if !ok {
-			s, errG = step.Generate(nil)
-		} else {
-			s, errG = step.Generate(fparams)
+			return nil, core.TechnicalErrorWithCodeAndMessage("UNKNOWN METHOD", "method "+step.Function+" is not supported")
 		}
+		s, errG := gs(step.Function, step.Args, fparams)
 		if errG != nil {
 			return nil, errG
 		}
@@ -37,43 +55,42 @@ func (a *Aggregation) GenerateAggregation(params map[string]any) (mongo.Pipeline
 
 }
 
-var builder = filterbuilder.NewBuilder()
+type GenerateStep func(function string, args map[string]interface{}, params any) (bson.D, *core.ApplicationError)
 
-type Step struct {
-	Key      string         `mapstructure:"key" json:"key" yaml:"key"`
-	Function string         `mapstructure:"function" json:"function" yaml:"function"`
-	Args     map[string]any `mapstructure:"args" json:"args" yaml:"args"`
-}
+func unionWith(function string, args map[string]interface{}, params any) (bson.D, *core.ApplicationError) {
 
-func (s *Step) Generate(params any) (bson.D, *core.ApplicationError) {
-
-	switch s.Function {
-	case "$limit", "$skip":
-		return bson.D{{Key: s.Function, Value: params}}, nil
-	case "$unionWith":
-	case "$match":
-		{
-			match, errFilter := buildFilter(params)
-			if errFilter != nil {
-				return nil, errFilter
-			}
-			return bson.D{{Key: s.Function, Value: match}}, nil
-		}
-
-	case "$project", "$sort":
-		return bson.D{{Key: s.Function, Value: s.Args}}, nil
-	default:
-		return nil, core.TechnicalErrorWithCodeAndMessage("UNKNOWN METHOD", "method"+s.Function+" is not supported")
+	pipelineName, okP := args["pipeline"].(string)
+	if !okP {
+		return nil, core.TechnicalErrorWithCodeAndMessage("", "pipeline not found")
 	}
-	return nil, core.TechnicalErrorWithCodeAndMessage("ISNH", "It should never happer")
+	a, okA := Aggregations[pipelineName]
+	if !okA {
+		return nil, core.TechnicalErrorWithCodeAndMessage("", "aggregation not found")
+	}
+	mp, err := GenerateAggregation(a, params.(map[string]interface{}))
+
+	if err != nil {
+		return nil, err
+	}
+
+	return bson.D{{Key: function, Value: bson.A{
+		bson.D{{Key: "coll", Value: a.Collection}},
+		bson.D{{Key: "pipeline", Value: mp}},
+	}}}, nil
+
 }
 
-func buildFilter(filter any) (bson.M, *core.ApplicationError) {
+func simpleParams(function string, args map[string]interface{}, params any) (bson.D, *core.ApplicationError) {
+	return bson.D{{Key: function, Value: params}}, nil
+}
 
-	filterM, err := builder.BuildQuery(filter)
-
+func simpleArgs(function string, args map[string]interface{}, params any) (bson.D, *core.ApplicationError) {
+	return bson.D{{Key: function, Value: args}}, nil
+}
+func match(function string, args map[string]interface{}, params any) (bson.D, *core.ApplicationError) {
+	filterM, err := filterBuilder.BuildQuery(params)
 	if err != nil {
 		return nil, core.TechnicalErrorWithError(err)
 	}
-	return filterM, nil
+	return bson.D{{Key: function, Value: filterM}}, nil
 }

@@ -3,6 +3,7 @@ package mongo
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -24,14 +25,14 @@ import (
 )
 
 type Service struct {
-	client       *mongo.Client
-	Database     *mongo.Database
-	poolMetric   *poolMetric
-	Aggregations map[string]*Aggregation
+	client     *mongo.Client
+	Database   *mongo.Database
+	poolMetric *poolMetric
 }
 
 var DefaultWriteConcern = writeconcern.Majority()
 var DefaultReadConcern = readconcern.Majority()
+var Aggregations map[string]*Aggregation
 
 const DefaultWriteTimeout = 60 * time.Second
 const DefaultAuthMechanism = "SCRAM-SHA-256"
@@ -91,12 +92,12 @@ func NewService(config *Config, lc fx.Lifecycle) *Service {
 			return nil
 		}})
 
-	mongoService.Aggregations = map[string]*Aggregation{}
+	Aggregations = map[string]*Aggregation{}
 
 	for _, v := range config.Aggregations {
-		mongoService.Aggregations[v.Name] = v
+		Aggregations[v.Name] = v
 	}
-	fmt.Printf("%+v", mongoService.Aggregations[config.Aggregations[0].Name])
+	fmt.Printf("%+v", Aggregations[config.Aggregations[0].Name])
 	return mongoService
 
 }
@@ -341,22 +342,20 @@ func (ms *Service) ExecTransaction(ctx context.Context, transaction func(sessCtx
 
 }
 
-func (ms *Service) ExecuteAggregation(ctx context.Context, name string, params map[string]any) (*mongo.Cursor, *core.ApplicationError) {
-	aggregation, ok := ms.Aggregations[name]
+func (ms *Service) ExecuteAggregation(ctx context.Context, name string, params map[string]any, opts ...*options.AggregateOptions) (*mongo.Cursor, *core.ApplicationError) {
+	aggregation, ok := Aggregations[name]
 	if !ok {
 		return nil, core.BusinessErrorWithCodeAndMessage("NOT-FOUND", fmt.Sprintf("aggregation '%s' not found", name))
 	}
-	mp, err := aggregation.GenerateAggregation(params)
-
-	fmt.Println(mp)
-
+	mp, err := GenerateAggregation(aggregation, params)
 	if err != nil {
 		return nil, err
 	}
-	cur, errAgg := ms.Database.Collection(aggregation.Collection).Aggregate(ctx, mp, options.Aggregate().SetAllowDiskUse(true))
-
-	fmt.Println(cur)
+	cur, errAgg := ms.Database.Collection(aggregation.Collection).Aggregate(ctx, mp, opts...)
 	if errAgg != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, core.NotFoundError()
+		}
 		return nil, core.TechnicalErrorWithError(errAgg)
 	}
 	return cur, nil
