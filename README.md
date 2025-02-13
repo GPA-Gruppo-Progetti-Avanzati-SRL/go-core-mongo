@@ -32,9 +32,9 @@ La struct di input deve avere i campi taggati con:
     - ```$exists```
 
 ```go
-MyFilter struct {
-    Name  string `field:"name" operator:"$eq"`
-    Age   int    `field:"age" operator:"$gt"`
+Filtro struct {
+    Nome  string `field:"name" operator:"$eq"`
+    Eta   int    `field:"age" operator:"$gt"`
     Tags  []string `field:"tags" operator:"$in"`
 }
 ```
@@ -44,10 +44,10 @@ Il Filter Builder itera attraverso i campi della struct, legge i tag field e ope
 **N.B.** per il momento è supportato solo **bson.M**
 
 ```go
-filterStruct := MyFilter{
-    Name: "John",
-    Age:  30,
-    Tags: []string{"developer", "gopher"},
+filterStruct := Filtro{
+    Nome: "Federico",
+    Età:  28,
+    Tags: []string{"developer", "backend", "frontend"},
 }
 
 filter, err := buildFilter(filterStruct)
@@ -57,9 +57,9 @@ if err != nil {
 
 // Il filtro risultante sarà:
 // bson.M{
-//     "name": bson.M{"$eq": "John"},
-//     "age":  bson.M{"$gt": 30},
-//     "tags": bson.M{"$in": []string{"developer", "gopher"}},
+//     "name": bson.M{"$eq": "Federico"},
+//     "age":  bson.M{"$gt": 28},
+//     "tags": bson.M{"$in": []string{"developer", "backend", "frontend"}},
 // }
 ```
 
@@ -77,13 +77,61 @@ Le aggregazioni sono definite tramite la struct Aggregation, che include:
 
 Ogni Stage include:
 
-- Key: Una chiave per identificare i parametri della fase.
-- Operator: L'operatore MongoDB da utilizzare (es. ```$match```, ```$project```).
-- Args: Argomenti specifici per l'operatore.
+- **Key**: Una chiave per identificare i parametri della fase.
+- **Operator**: L'operatore MongoDB da utilizzare (es. ```$match```, ```$project```).
+- **Args**: Argomenti specifici per l'operatore.
 
-#### Generazione della Pipeline
+#### Esecuzioni dell'aggregazione
 
-La funzione ```GenerateAggregation``` prende un'aggregazione e i parametri, e genera una pipeline MongoDB (mongo.Pipeline). Per ogni fase nella definizione dell'aggregazione, viene chiamata una funzione generatrice (GenerateStage) che costruisce la fase corrispondente in **bson.D**.
+La funzione ```ExecuteAggregation``` esegue una pipeline di aggregazione su una collezione MongoDB. Questa funzione prende il nome di un'aggregazione predefinita, i parametri per la pipeline e le opzioni di aggregazione, e restituisce un cursore MongoDB con i risultati dell'aggregazione.
+
+*Parametri*:
+
+- **ctx**: Il contesto per l'esecuzione della query.
+- **name**: Il nome dell'aggregazione predefinita.
+- **params**: Una mappa di parametri da utilizzare nella pipeline di aggregazione.
+- **opts**: Opzioni aggiuntive per l'aggregazione.
+
+*Ritorna*:
+
+- ```mongo.Cursor```: Un cursore MongoDB con i risultati dell'aggregazione.
+- ```core.ApplicationError```: Un errore applicativo in caso di fallimento.
+
+Esempio:
+
+```go
+ctx := context.TODO()
+name := "exampleAggregation"
+params := map[string]any{
+    "stage1": MyFilter{Field: "value"},
+}
+opts := options.Aggregate()
+
+cursor, err := service.ExecuteAggregation(ctx, name, params, opts)
+if err != nil {
+    log.Fatal(err)
+}
+
+for cursor.Next(ctx) {
+    var result bson.M
+    if err := cursor.Decode(&result); err != nil {
+        log.Fatal(err)
+    }
+    fmt.Println(result)
+}
+```
+
+*Dettagli di implementazione*
+
+1. La funzione cerca l'aggregazione predefinita nel mappa Aggregations utilizzando il nome fornito.
+2. Se l'aggregazione non viene trovata, restituisce un errore di tipo BusinessError.
+3. Genera la pipeline di aggregazione chiamando la funzione GenerateAggregation con l'aggregazione e i parametri forniti.
+4. Converte la pipeline in formato JSON per il logging.
+5. Esegue l'aggregazione sulla collezione specificata utilizzando il metodo Aggregate di MongoDB.
+6. Gestisce eventuali errori, inclusi i casi in cui non vengono trovati documenti (mongo.ErrNoDocuments).
+7. Restituisce il cursore con i risultati dell'aggregazione.
+
+Questa funzione permette di eseguire aggregazioni complesse in modo dinamico, basandosi su configurazioni predefinite e parametri forniti a runtime.
 
 #### Configurazione delle aggregazioni
 
@@ -96,12 +144,13 @@ aggregations:
   - name: exampleAggregation
     collection: exampleCollection
     stages:
-      - key: stage1
-        operator: $match
-        args:
-          field: value
-      - key: stage2
-        operator: $project
+      - operator: $match
+        key: stage1
+      - operator: $project
         args:
           field: 1
+      - operator: $skip
+        key: skip
+      - operator: $limit
+        key: limit
 ```
