@@ -38,7 +38,7 @@ func init() {
 		"$unionWith": unionWith,
 	}
 }
-func GenerateAggregations(aggregationFolder string, aggregationFiles embed.FS) {
+func LoadAggregations(aggregationFolder string, aggregationFiles embed.FS) {
 	Aggregations = make(map[string]*Aggregation)
 	dir, err := aggregationFiles.ReadDir(aggregationFolder)
 	if err != nil {

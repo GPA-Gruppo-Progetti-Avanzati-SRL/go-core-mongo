@@ -93,7 +93,7 @@ func NewService(config *Config, lc fx.Lifecycle, aggregationFiles embed.FS) *Ser
 			return nil
 		}})
 
-	GenerateAggregations(config.Aggregations, aggregationFiles)
+	LoadAggregations(config.Aggregations, aggregationFiles)
 	return mongoService
 
 }
