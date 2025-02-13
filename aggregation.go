@@ -9,20 +9,20 @@ import (
 )
 
 type Aggregation struct {
-	Name       string  `mapstructure:"name" json:"name" yaml:"name"`
-	Collection string  `mapstructure:"collection" json:"collection" yaml:"collection"`
-	Steps      []*Step `mapstructure:"steps" json:"steps" yaml:"steps"`
+	Name       string   `mapstructure:"name" json:"name" yaml:"name"`
+	Collection string   `mapstructure:"collection" json:"collection" yaml:"collection"`
+	Stages     []*Stage `mapstructure:"stages" json:"stages" yaml:"stages"`
 }
-type Step struct {
+type Stage struct {
 	Key      string         `mapstructure:"key" json:"key" yaml:"key"`
 	Function string         `mapstructure:"function" json:"function" yaml:"function"`
 	Args     map[string]any `mapstructure:"args" json:"args" yaml:"args"`
 }
 
-var stepGenerators map[string]GenerateStep
+var stageGenerators map[string]GenerateStage
 
 func init() {
-	stepGenerators = map[string]GenerateStep{
+	stageGenerators = map[string]GenerateStage{
 
 		"$skip":      simpleParams,
 		"$limit":     simpleParams,
@@ -36,14 +36,14 @@ func init() {
 func GenerateAggregation(a *Aggregation, params map[string]any) (mongo.Pipeline, *core.ApplicationError) {
 
 	mp := make(mongo.Pipeline, 0)
-	for _, step := range a.Steps {
+	for _, stage := range a.Stages {
 
-		fparams := params[step.Key]
-		gs, ok := stepGenerators[step.Function]
+		fparams := params[stage.Key]
+		gs, ok := stageGenerators[stage.Function]
 		if !ok {
-			return nil, core.TechnicalErrorWithCodeAndMessage("UNKNOWN METHOD", "method "+step.Function+" is not supported")
+			return nil, core.TechnicalErrorWithCodeAndMessage("UNKNOWN METHOD", "method "+stage.Function+" is not supported")
 		}
-		s, errG := gs(step.Function, step.Args, fparams)
+		s, errG := gs(stage.Function, stage.Args, fparams)
 		if errG != nil {
 			return nil, errG
 		}
@@ -54,7 +54,7 @@ func GenerateAggregation(a *Aggregation, params map[string]any) (mongo.Pipeline,
 
 }
 
-type GenerateStep func(function string, args map[string]interface{}, params any) (bson.D, *core.ApplicationError)
+type GenerateStage func(function string, args map[string]interface{}, params any) (bson.D, *core.ApplicationError)
 
 func unionWith(function string, args map[string]interface{}, params any) (bson.D, *core.ApplicationError) {
 
