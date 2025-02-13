@@ -15,7 +15,7 @@ type Aggregation struct {
 }
 type Stage struct {
 	Key      string         `mapstructure:"key" json:"key" yaml:"key"`
-	Function string         `mapstructure:"function" json:"function" yaml:"function"`
+	Operator string         `mapstructure:"operator" json:"operator" yaml:"operator"`
 	Args     map[string]any `mapstructure:"args" json:"args" yaml:"args"`
 }
 
@@ -39,11 +39,11 @@ func GenerateAggregation(a *Aggregation, params map[string]any) (mongo.Pipeline,
 	for _, stage := range a.Stages {
 
 		fparams := params[stage.Key]
-		gs, ok := stageGenerators[stage.Function]
+		gs, ok := stageGenerators[stage.Operator]
 		if !ok {
-			return nil, core.TechnicalErrorWithCodeAndMessage("UNKNOWN METHOD", "method "+stage.Function+" is not supported")
+			return nil, core.TechnicalErrorWithCodeAndMessage("UNKNOWN Operator", "operator "+stage.Operator+" is not supported")
 		}
-		s, errG := gs(stage.Function, stage.Args, fparams)
+		s, errG := gs(stage.Operator, stage.Args, fparams)
 		if errG != nil {
 			return nil, errG
 		}
