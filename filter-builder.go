@@ -7,12 +7,23 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
+var operatorHandlers = map[string]func(string, interface{}) (bson.M, error){
+	"$eq":     handleSimpleOperator,
+	"$ne":     handleSimpleOperator,
+	"$gt":     handleSimpleOperator,
+	"$gte":    handleSimpleOperator,
+	"$lt":     handleSimpleOperator,
+	"$lte":    handleSimpleOperator,
+	"$in":     handleArrayOperator,
+	"$nin":    handleArrayOperator,
+	"$exists": handleBoolOperator,
+}
+
 // buildFilter converte una struct con tag specifici in un bson.M per query MongoDB.
 // La struct deve avere i campi taggati con:
 // - `field:"nome_campo_mongodb"`:  Il nome del campo in MongoDB.
 // - `operator:"$operatore"`: L'operatore MongoDB da usare (es. $eq, $in, $gt, $lt).
 func buildFilter(inputStruct interface{}) (bson.M, error) {
-
 	if inputStruct == nil {
 		return nil, fmt.Errorf("input non puo essere nil")
 	}
@@ -38,11 +49,10 @@ func buildFilter(inputStruct interface{}) (bson.M, error) {
 
 		// Se mancano i tag 'field' o 'operator', salta il campo
 		if fieldNameTag == "" || operatorTag == "" {
-			continue // Puoi anche decidere di ritornare un errore se i tag sono obbligatori
+			continue
 		}
 
 		_, ok := field.Tag.Lookup("omitempty")
-
 		if ok && valField.IsZero() {
 			continue
 		}
@@ -50,27 +60,36 @@ func buildFilter(inputStruct interface{}) (bson.M, error) {
 		// Usa il nome del campo dal tag 'field' per il bson.M
 		bsonFieldName := fieldNameTag
 
-		// Gestisci diversi operatori
-		switch operatorTag {
-		case "$eq", "$ne", "$gt", "$gte", "$lt", "$lte":
-			filter[bsonFieldName] = bson.M{operatorTag: fieldValue}
-		case "$in", "$nin":
-			// Verifica che il valore sia una slice per operatori $in e $nin
-			if reflect.ValueOf(fieldValue).Kind() != reflect.Slice {
-				return nil, fmt.Errorf("campo '%s' con operatore '%s' deve essere una slice", fieldNameTag, operatorTag)
-			}
-			filter[bsonFieldName] = bson.M{operatorTag: fieldValue}
-		case "$exists":
-			// Per $exists ci aspettiamo un booleano
-			boolValue, ok := fieldValue.(bool)
-			if !ok {
-				return nil, fmt.Errorf("campo '%s' con operatore '$exists' deve essere un booleano", fieldNameTag)
-			}
-			filter[bsonFieldName] = bson.M{operatorTag: boolValue}
-		default:
+		handler, ok := operatorHandlers[operatorTag]
+		if !ok {
 			return nil, fmt.Errorf("operatore '%s' non supportato per il campo '%s'", operatorTag, fieldNameTag)
 		}
+
+		opFilter, err := handler(operatorTag, fieldValue)
+		if err != nil {
+			return nil, fmt.Errorf("errore per campo '%s' operatore '%s': %w", fieldNameTag, operatorTag, err)
+		}
+		filter[bsonFieldName] = opFilter
 	}
 
 	return filter, nil
+}
+
+func handleSimpleOperator(operator string, fieldValue interface{}) (bson.M, error) {
+	return bson.M{operator: fieldValue}, nil
+}
+
+func handleArrayOperator(operator string, fieldValue interface{}) (bson.M, error) {
+	if reflect.ValueOf(fieldValue).Kind() != reflect.Slice {
+		return nil, fmt.Errorf("operatore '%s' richiede un valore di tipo slice", operator)
+	}
+	return bson.M{operator: fieldValue}, nil
+}
+
+func handleBoolOperator(operator string, fieldValue interface{}) (bson.M, error) {
+	boolValue, ok := fieldValue.(bool)
+	if !ok {
+		return nil, fmt.Errorf("operatore '%s' richiede un valore di tipo booleano", operator)
+	}
+	return bson.M{operator: boolValue}, nil
 }
