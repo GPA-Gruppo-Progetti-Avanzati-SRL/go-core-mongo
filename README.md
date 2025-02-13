@@ -16,7 +16,6 @@ Di default permette all'applicazione di esporre le metriche del database.
 
 Il Filter Builder è una funzionalità della libreria go-core-mongo che permette di costruire filtri per le query MongoDB a partire da una struct Go. Questa funzionalità converte una struct con tag specifici in un oggetto bson.M, che può essere utilizzato nelle query MongoDB.
 
-Come funziona
 La struct di input deve avere i campi taggati con:
 
 - **field**: "nome_campo_mongodb": Il nome del campo in MongoDB.
