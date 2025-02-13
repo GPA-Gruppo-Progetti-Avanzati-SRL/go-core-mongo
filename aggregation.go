@@ -1,12 +1,18 @@
 package mongo
 
 import (
+	"embed"
 	"fmt"
+	"github.com/rs/zerolog/log"
+	"gopkg.in/yaml.v3"
+	"path/filepath"
 
 	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 )
+
+var Aggregations map[string]*Aggregation
 
 type Aggregation struct {
 	Name       string   `mapstructure:"name" json:"name" yaml:"name"`
@@ -30,6 +36,29 @@ func init() {
 		"$sort":      simpleArgs,
 		"$match":     match,
 		"$unionWith": unionWith,
+	}
+}
+func GenerateAggregations(aggregationFolder string, aggregationFiles embed.FS) {
+	Aggregations = make(map[string]*Aggregation)
+	dir, err := aggregationFiles.ReadDir(aggregationFolder)
+	if err != nil {
+		log.Fatal().Err(err).Msg("aggregationFolder")
+	}
+	for _, file := range dir {
+		log.Info().Msgf("Loading Aggregation %s", file.Name())
+		yamlFile, errRead := aggregationFiles.ReadFile(filepath.Join(aggregationFolder, file.Name()))
+		if errRead != nil {
+			log.Error().Err(errRead).Msg("aggregation read" + file.Name())
+			continue
+		}
+		a := &Aggregation{}
+		errUm := yaml.Unmarshal(yamlFile, &a)
+		if errUm != nil {
+			log.Error().Err(errUm).Msg("aggregation Unmarshal " + file.Name())
+			continue
+		}
+		Aggregations[a.Name] = a
+		log.Info().Msgf("Aggregation loaded %s", a.Name)
 	}
 }
 

@@ -31,7 +31,7 @@ type Config struct {
 	ZlibLevel              *int           `mapstructure:"zlib-level" json:"zlib-level" yaml:"zlib-level"`
 	ZstdLevel              *int           `mapstructure:"zstd-level" json:"zstd-level" yaml:"zstd-level"`
 	MetricConfig           MetricConfig   `mapstructure:"metrics" json:"metrics" yaml:"metrics"`
-	Aggregations           []*Aggregation `mapstructure:"aggregations" json:"aggregations" yaml:"aggregations"`
+	Aggregations           string         `mapstructure:"aggregations" json:"aggregations" yaml:"aggregations"`
 }
 
 type TLSConfig struct {

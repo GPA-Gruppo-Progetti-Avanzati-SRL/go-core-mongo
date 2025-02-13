@@ -3,6 +3,7 @@ package mongo
 import (
 	"context"
 	"crypto/tls"
+	"embed"
 	"errors"
 	"fmt"
 	"strconv"
@@ -33,7 +34,6 @@ type Service struct {
 
 var DefaultWriteConcern = writeconcern.Majority()
 var DefaultReadConcern = readconcern.Majority()
-var Aggregations map[string]*Aggregation
 
 const DefaultWriteTimeout = 60 * time.Second
 const DefaultAuthMechanism = "SCRAM-SHA-256"
@@ -57,7 +57,7 @@ func EvalWriteConcern(wstr string) *writeconcern.WriteConcern {
 	return w
 }
 
-func NewService(config *Config, lc fx.Lifecycle) *Service {
+func NewService(config *Config, lc fx.Lifecycle, aggregationFiles embed.FS) *Service {
 
 	mongoService := &Service{}
 
@@ -93,12 +93,7 @@ func NewService(config *Config, lc fx.Lifecycle) *Service {
 			return nil
 		}})
 
-	Aggregations = map[string]*Aggregation{}
-
-	for _, v := range config.Aggregations {
-		Aggregations[v.Name] = v
-	}
-
+	GenerateAggregations(config.Aggregations, aggregationFiles)
 	return mongoService
 
 }
