@@ -57,7 +57,7 @@ func EvalWriteConcern(wstr string) *writeconcern.WriteConcern {
 	return w
 }
 
-func NewService(config *Config, lc fx.Lifecycle, aggregationFiles embed.FS) *Service {
+func NewService(config *Config, lc fx.Lifecycle, aggregationFiles AggregationDirectory) *Service {
 
 	mongoService := &Service{}
 
@@ -93,7 +93,7 @@ func NewService(config *Config, lc fx.Lifecycle, aggregationFiles embed.FS) *Ser
 			return nil
 		}})
 
-	LoadAggregations(config.Aggregations, aggregationFiles)
+	LoadAggregations(config.Aggregations, embed.FS(aggregationFiles))
 	return mongoService
 
 }

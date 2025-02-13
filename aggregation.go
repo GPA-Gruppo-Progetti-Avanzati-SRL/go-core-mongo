@@ -14,6 +14,7 @@ import (
 
 var Aggregations map[string]*Aggregation
 
+type AggregationDirectory embed.FS
 type Aggregation struct {
 	Name       string   `mapstructure:"name" json:"name" yaml:"name"`
 	Collection string   `mapstructure:"collection" json:"collection" yaml:"collection"`
