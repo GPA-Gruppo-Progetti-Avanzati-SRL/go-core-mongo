@@ -2,6 +2,7 @@ package mongo
 
 import (
 	"fmt"
+	"maps"
 	"reflect"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -69,7 +70,14 @@ func buildFilter(inputStruct interface{}) (bson.M, error) {
 		if err != nil {
 			return nil, fmt.Errorf("errore per campo '%s' operatore '%s': %w", fieldNameTag, operatorTag, err)
 		}
-		filter[bsonFieldName] = opFilter
+		previousFilter, ok := filter[bsonFieldName]
+
+		if !ok {
+			filter[bsonFieldName] = opFilter
+		} else {
+			maps.Copy(previousFilter.(bson.M), opFilter)
+		}
+
 	}
 
 	return filter, nil
