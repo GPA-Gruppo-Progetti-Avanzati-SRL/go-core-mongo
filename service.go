@@ -6,12 +6,7 @@ import (
 	"embed"
 	"errors"
 	"fmt"
-	"strconv"
-	"time"
-
 	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app"
-	"go.uber.org/fx"
-
 	mongoprom "github.com/globocom/mongo-go-prometheus"
 	"github.com/rs/zerolog/log"
 	"go.mongodb.org/mongo-driver/bson"
@@ -24,7 +19,15 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
+	"go.uber.org/fx"
+	"strconv"
+	"time"
 )
+
+type Core struct {
+	fx.In
+	AggregationFiles AggregationDirectory `optional:"true"`
+}
 
 type Service struct {
 	client     *mongo.Client
@@ -57,7 +60,7 @@ func EvalWriteConcern(wstr string) *writeconcern.WriteConcern {
 	return w
 }
 
-func NewService(config *Config, lc fx.Lifecycle, aggregationFiles AggregationDirectory) *Service {
+func NewService(config *Config, lc fx.Lifecycle, mc Core) *Service {
 
 	mongoService := &Service{}
 
@@ -93,7 +96,10 @@ func NewService(config *Config, lc fx.Lifecycle, aggregationFiles AggregationDir
 			return nil
 		}})
 
-	LoadAggregations(config.Aggregations, embed.FS(aggregationFiles))
+	if config.Aggregations != "" {
+		LoadAggregations(config.Aggregations, embed.FS(mc.AggregationFiles))
+	}
+
 	return mongoService
 
 }
