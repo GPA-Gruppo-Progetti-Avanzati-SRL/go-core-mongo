@@ -35,6 +35,7 @@ func init() {
 		"$limit":     simpleParams,
 		"$project":   simpleArgs,
 		"$sort":      simpleArgs,
+		"$group":     simpleArgs,
 		"$match":     match,
 		"$unionWith": unionWith,
 	}
