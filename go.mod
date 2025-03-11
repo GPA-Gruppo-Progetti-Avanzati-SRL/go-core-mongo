@@ -6,7 +6,7 @@ require (
 	github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app v0.0.2
 	github.com/globocom/mongo-go-prometheus v0.1.1
 	github.com/rs/zerolog v1.33.0
-	go.mongodb.org/mongo-driver v1.17.2
+	go.mongodb.org/mongo-driver v1.17.3
 	go.opentelemetry.io/contrib/instrumentation/go.mongodb.org/mongo-driver/mongo/otelmongo v0.59.0
 	go.opentelemetry.io/otel v1.35.0
 	go.opentelemetry.io/otel/metric v1.35.0
