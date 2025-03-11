@@ -6,8 +6,8 @@ require (
 	github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app v0.0.2
 	github.com/globocom/mongo-go-prometheus v0.1.1
 	github.com/rs/zerolog v1.33.0
-	go.mongodb.org/mongo-driver v1.17.2
-	go.opentelemetry.io/contrib/instrumentation/go.mongodb.org/mongo-driver/mongo/otelmongo v0.59.0
+	go.mongodb.org/mongo-driver v1.17.3
+	go.opentelemetry.io/contrib/instrumentation/go.mongodb.org/mongo-driver/mongo/otelmongo v0.60.0
 	go.opentelemetry.io/otel v1.35.0
 	go.opentelemetry.io/otel/metric v1.35.0
 	go.uber.org/fx v1.23.0
@@ -23,7 +23,7 @@ require (
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
-	github.com/golang/snappy v0.0.4 // indirect
+	github.com/golang/snappy v1.0.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.26.3 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
