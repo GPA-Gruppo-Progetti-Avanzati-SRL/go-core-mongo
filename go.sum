@@ -1,7 +1,7 @@
 cloud.google.com/go v0.34.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
-github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app v0.0.1 h1:3WYXofDqA/tpMjh6o1b4RSD6q97/itaQWiDNO2uYTEc=
-github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app v0.0.1/go.mod h1:NYCgYGYMrHHtzdHEDshnsJfTmnVOm/JfGUyP8ViBs/c=
+github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app v0.0.2 h1:cXAe6pUr/xfIuCIxPDPfrMm+44PN+KTCKZU/juovQwA=
+github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app v0.0.2/go.mod h1:OiTJjCa0zLqNHiUV8Ha5vPGn8/1JBUUMexW1oVS1218=
 github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-common v0.1.76 h1:HuLErhoEmiF6DdgB3zaV315zd5NeQxm0tR9AnqKUqsc=
 github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-common v0.1.76/go.mod h1:4WYfJ0LgWLu38TukgFrFN4/zLePQ1BhFkpH/k28zRlA=
 github.com/alecthomas/template v0.0.0-20160405071501-a0175ee3bccc/go.mod h1:LOuyumcjzFXgccqObfd/Ljyb9UuFJ6TxHnclSeseNhc=
