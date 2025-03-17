@@ -317,14 +317,14 @@ func (q *Query) ToMongoQuery() bson.M {
 }
 
 // ExecuteQuery esegue la query SQL convertita su MongoDB
-func (me *Service) ExecuteQuery(ctx context.Context, sql string) (*mongo.Cursor, error) {
+func (ms *Service) ExecuteQuery(ctx context.Context, sql string) (*mongo.Cursor, error) {
 	query, err := ParseSQL(sql)
 	if err != nil {
 		return nil, err
 	}
 
 	// Imposta la collezione corretta
-	collection := me.Database.Collection(query.Collection)
+	collection := ms.Database.Collection(query.Collection)
 
 	// Costruisci la pipeline di aggregazione con $match
 	pipeline := []bson.M{}
