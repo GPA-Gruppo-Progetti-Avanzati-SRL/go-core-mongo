@@ -30,7 +30,14 @@ func buildFilter(inputStruct interface{}) (bson.M, error) {
 	}
 	val := reflect.ValueOf(inputStruct)
 	typ := reflect.TypeOf(inputStruct)
-
+	// Se è un puntatore, dereferenzialo
+	if typ.Kind() == reflect.Ptr {
+		if val.IsNil() {
+			return nil, fmt.Errorf("input non può essere un puntatore nil")
+		}
+		val = val.Elem()
+		typ = val.Type()
+	}
 	// Verifica che l'input sia una struct
 	if typ.Kind() != reflect.Struct {
 		return nil, fmt.Errorf("input non è una struct")
