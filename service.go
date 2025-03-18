@@ -112,7 +112,7 @@ func GetObjectById[T any](ctx context.Context, ms *Service, id, collection strin
 	err := ms.Database.Collection(collection).FindOne(ctx, filter).Decode(&obj)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			return core.BusinessErrorWithCodeAndMessage("NOREC", "Nessuna oggetto trovata")
+			return core.NotFoundError()
 		}
 		return core.TechnicalErrorWithError(err)
 	}
@@ -143,7 +143,7 @@ func GetObjectByFilter[T any](ctx context.Context, ms *Service, collection strin
 	err := ms.Database.Collection(collection).FindOne(ctx, filterB).Decode(&obj)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			return core.BusinessErrorWithCodeAndMessage("NOREC", "Nessuna oggetto trovata")
+			return core.NotFoundError()
 		}
 		return core.TechnicalErrorWithError(err)
 	}
