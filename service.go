@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app"
+	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -104,19 +105,19 @@ func (ms *Service) ExecTransaction(ctx context.Context, transaction func(sessCtx
 
 }
 
-func GetObjectById[T any](ctx context.Context, ms *Service, id, collection string, obj *T) *core.ApplicationError {
-
+func GetObjectById[T any](ctx context.Context, ms *Service, id, collection string) (*T, *core.ApplicationError) {
+	var result T
 	filter := bson.D{
 		bson.E{Key: "_id", Value: id},
 	}
-	err := ms.Database.Collection(collection).FindOne(ctx, filter).Decode(&obj)
+	err := ms.Database.Collection(collection).FindOne(ctx, filter).Decode(&result)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			return core.NotFoundError()
+			return nil, core.NotFoundError()
 		}
-		return core.TechnicalErrorWithError(err)
+		return nil, core.TechnicalErrorWithError(err)
 	}
-	return nil
+	return &result, nil
 
 }
 
@@ -134,20 +135,39 @@ func (ms *Service) CountDocuments(ctx context.Context, collection string, filter
 
 }
 
-func GetObjectByFilter[T any](ctx context.Context, ms *Service, collection string, filter any, obj *T) *core.ApplicationError {
-
+func GetObjectByFilter[T any](ctx context.Context, ms *Service, collection string, filter any) (*T, *core.ApplicationError) {
+	var obj T
 	filterB, errB := buildFilter(filter)
 	if errB != nil {
-		return core.TechnicalErrorWithError(errB)
+		return nil, core.TechnicalErrorWithError(errB)
 	}
 	err := ms.Database.Collection(collection).FindOne(ctx, filterB).Decode(&obj)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			return core.NotFoundError()
+			return nil, core.NotFoundError()
 		}
-		return core.TechnicalErrorWithError(err)
+		return nil, core.TechnicalErrorWithError(err)
 	}
-	return nil
+	return &obj, nil
+
+}
+
+func GetObjectsByFilter[T any](ctx context.Context, ms *Service, collection string, filter any) ([]*T, *core.ApplicationError) {
+
+	filterB, errB := buildFilter(filter)
+	if errB != nil {
+		return nil, core.TechnicalErrorWithError(errB)
+	}
+	cur, err := ms.Database.Collection(collection).Find(ctx, filterB)
+	if err != nil {
+		return nil, core.TechnicalErrorWithError(err)
+	}
+	results := make([]*T, 0)
+	errCur := cur.All(ctx, &results)
+	if errCur != nil {
+		return nil, core.TechnicalErrorWithError(errCur)
+	}
+	return results, nil
 
 }
 
@@ -161,10 +181,13 @@ func (ms *Service) ExecuteAggregation(ctx context.Context, name string, params m
 	if err != nil {
 		return nil, err
 	}
+	if zerolog.GlobalLevel() < zerolog.DebugLevel {
+		value := MongoPipelineToJson(mp)
 
-	value := MongoPipelineToJson(mp)
+		log.Trace().Msg(value)
 
-	log.Trace().Msg(value)
+	}
+
 	cur, errAgg := ms.Database.Collection(aggregation.Collection).Aggregate(ctx, mp, opts...)
 	if errAgg != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {

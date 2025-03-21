@@ -2,6 +2,8 @@ package mongo
 
 import (
 	"fmt"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"maps"
 	"reflect"
 
@@ -86,6 +88,10 @@ func buildFilter(inputStruct interface{}) (bson.M, error) {
 		}
 
 	}
+	if zerolog.GlobalLevel() < zerolog.InfoLevel {
+
+		log.Debug().Msgf("mongo filter: %v", MongoFilterToJson(filter))
+	}
 
 	return filter, nil
 }
@@ -107,4 +113,17 @@ func handleBoolOperator(operator string, fieldValue interface{}) (bson.M, error)
 		return nil, fmt.Errorf("operatore '%s' richiede un valore di tipo booleano", operator)
 	}
 	return bson.M{operator: boolValue}, nil
+}
+
+func MongoFilterToJson(filter any) string {
+
+	mappa := bson.M{"filter": filter}
+
+	value, err := bson.MarshalExtJSON(mappa, false, false)
+
+	if err != nil {
+		return ""
+	}
+	return string(value)
+
 }
