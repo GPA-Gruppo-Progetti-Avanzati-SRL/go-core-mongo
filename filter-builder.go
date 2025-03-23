@@ -90,7 +90,7 @@ func buildFilter(inputStruct interface{}) (bson.M, error) {
 	}
 	if zerolog.GlobalLevel() < zerolog.InfoLevel {
 
-		log.Debug().Msgf("mongo filter: %v", MongoFilterToJson(filter))
+		log.Debug().Msgf("mongo filter: %v", FilterToJson(filter))
 	}
 
 	return filter, nil
@@ -115,7 +115,7 @@ func handleBoolOperator(operator string, fieldValue interface{}) (bson.M, error)
 	return bson.M{operator: boolValue}, nil
 }
 
-func MongoFilterToJson(filter any) string {
+func FilterToJson(filter any) string {
 
 	mappa := bson.M{"filter": filter}
 
