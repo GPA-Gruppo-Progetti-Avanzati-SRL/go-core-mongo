@@ -3,12 +3,8 @@ package mongo
 import (
 	"context"
 	"embed"
-	"errors"
-	"fmt"
 	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app"
-	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/writeconcern"
@@ -102,111 +98,5 @@ func (ms *Service) ExecTransaction(ctx context.Context, transaction func(sessCtx
 		return core.TechnicalErrorWithError(err)
 	}
 	return nil
-
-}
-
-func GetObjectById[T any](ctx context.Context, ms *Service, id, collection string) (*T, *core.ApplicationError) {
-	var result T
-	filter := bson.D{
-		bson.E{Key: "_id", Value: id},
-	}
-	err := ms.Database.Collection(collection).FindOne(ctx, filter).Decode(&result)
-	if err != nil {
-		if errors.Is(err, mongo.ErrNoDocuments) {
-			return nil, core.NotFoundError()
-		}
-		return nil, core.TechnicalErrorWithError(err)
-	}
-	return &result, nil
-
-}
-
-func (ms *Service) CountDocuments(ctx context.Context, collection string, filter any) (int64, *core.ApplicationError) {
-
-	filterB, errB := buildFilter(filter)
-	if errB != nil {
-		return 0, core.TechnicalErrorWithError(errB)
-	}
-	i, err := ms.Database.Collection(collection).CountDocuments(ctx, filterB)
-	if err != nil {
-		return 0, core.TechnicalErrorWithError(err)
-	}
-	return i, nil
-
-}
-
-func GetObjectByFilter[T any](ctx context.Context, ms *Service, collection string, filter any) (*T, *core.ApplicationError) {
-	var obj T
-	filterB, errB := buildFilter(filter)
-	if errB != nil {
-		return nil, core.TechnicalErrorWithError(errB)
-	}
-	err := ms.Database.Collection(collection).FindOne(ctx, filterB).Decode(&obj)
-	if err != nil {
-		if errors.Is(err, mongo.ErrNoDocuments) {
-			return nil, core.NotFoundError()
-		}
-		return nil, core.TechnicalErrorWithError(err)
-	}
-	return &obj, nil
-
-}
-
-func GetObjectsByFilter[T any](ctx context.Context, ms *Service, collection string, filter any) ([]*T, *core.ApplicationError) {
-
-	filterB, errB := buildFilter(filter)
-	if errB != nil {
-		return nil, core.TechnicalErrorWithError(errB)
-	}
-	cur, err := ms.Database.Collection(collection).Find(ctx, filterB)
-	if err != nil {
-		return nil, core.TechnicalErrorWithError(err)
-	}
-	results := make([]*T, 0)
-	errCur := cur.All(ctx, &results)
-	if errCur != nil {
-		return nil, core.TechnicalErrorWithError(errCur)
-	}
-	return results, nil
-
-}
-
-func (ms *Service) ExecuteAggregation(ctx context.Context, name string, params map[string]any, opts ...*options.AggregateOptions) (*mongo.Cursor, *core.ApplicationError) {
-	aggregation, ok := Aggregations[name]
-	if !ok {
-		return nil, core.BusinessErrorWithCodeAndMessage("NOT-FOUND", fmt.Sprintf("aggregation '%s' not found", name))
-	}
-	mp, err := GenerateAggregation(aggregation, params)
-
-	if err != nil {
-		return nil, err
-	}
-	if zerolog.GlobalLevel() < zerolog.DebugLevel {
-		value := MongoPipelineToJson(mp)
-
-		log.Trace().Msg(value)
-
-	}
-
-	cur, errAgg := ms.Database.Collection(aggregation.Collection).Aggregate(ctx, mp, opts...)
-	if errAgg != nil {
-		if errors.Is(err, mongo.ErrNoDocuments) {
-			return nil, core.NotFoundError()
-		}
-		return nil, core.TechnicalErrorWithError(errAgg)
-	}
-	return cur, nil
-}
-
-func MongoPipelineToJson(pipeline interface{}) string {
-
-	mappa := bson.M{"pipeline": pipeline}
-
-	value, err := bson.MarshalExtJSON(mappa, false, false)
-
-	if err != nil {
-		return ""
-	}
-	return string(value)
 
 }

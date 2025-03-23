@@ -1,9 +1,13 @@
 package mongo
 
 import (
+	"context"
 	"embed"
+	"errors"
 	"fmt"
+	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"gopkg.in/yaml.v3"
 	"path/filepath"
 
@@ -133,4 +137,71 @@ func match(function string, args map[string]interface{}, params any) (bson.D, *c
 		return nil, core.TechnicalErrorWithError(err)
 	}
 	return bson.D{{Key: function, Value: filterM}}, nil
+}
+
+func (ms *Service) ExecuteAggregation(ctx context.Context, name string, params map[string]any, opts ...*options.AggregateOptions) (*mongo.Cursor, *core.ApplicationError) {
+	aggregation, ok := Aggregations[name]
+	if !ok {
+		return nil, core.BusinessErrorWithCodeAndMessage("NOT-FOUND", fmt.Sprintf("aggregation '%s' not found", name))
+	}
+	mp, err := GenerateAggregation(aggregation, params)
+
+	if err != nil {
+		return nil, err
+	}
+	if zerolog.GlobalLevel() < zerolog.DebugLevel {
+		value := PipelineToJson(mp)
+		log.Trace().Msg(value)
+	}
+
+	cur, errAgg := ms.Database.Collection(aggregation.Collection).Aggregate(ctx, mp, opts...)
+	if errAgg != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, core.NotFoundError()
+		}
+		return nil, core.TechnicalErrorWithError(errAgg)
+	}
+	return cur, nil
+}
+
+func ExecuteAggregation[T any](ctx context.Context, ms *Service, name string, params map[string]any, opts ...*options.AggregateOptions) ([]*T, *core.ApplicationError) {
+	aggregation, ok := Aggregations[name]
+	if !ok {
+		return nil, core.BusinessErrorWithCodeAndMessage("NOT-FOUND", fmt.Sprintf("aggregation '%s' not found", name))
+	}
+	mp, err := GenerateAggregation(aggregation, params)
+
+	if err != nil {
+		return nil, err
+	}
+	if zerolog.GlobalLevel() < zerolog.DebugLevel {
+		value := PipelineToJson(mp)
+		log.Trace().Msg(value)
+	}
+
+	cur, errAgg := ms.Database.Collection(aggregation.Collection).Aggregate(ctx, mp, opts...)
+	if errAgg != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, core.NotFoundError()
+		}
+		return nil, core.TechnicalErrorWithError(errAgg)
+	}
+	results := make([]*T, 0)
+	if errCur := cur.All(ctx, &results); errCur != nil {
+		return nil, core.TechnicalErrorWithError(errCur)
+	}
+
+	return results, nil
+}
+func PipelineToJson(pipeline interface{}) string {
+
+	mappa := bson.M{"pipeline": pipeline}
+
+	value, err := bson.MarshalExtJSON(mappa, false, false)
+
+	if err != nil {
+		return ""
+	}
+	return string(value)
+
 }
