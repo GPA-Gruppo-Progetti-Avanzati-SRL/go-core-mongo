@@ -3,7 +3,9 @@ package mongo
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app"
+	"github.com/rs/zerolog/log"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -84,7 +86,7 @@ func GetObjectsByFilter[T ICollection](ctx context.Context, ms *Service, filter 
 
 }
 
-func InsertObject[T ICollection](ctx context.Context, ms *Service, obj *T) *core.ApplicationError {
+func InsertOne[T ICollection](ctx context.Context, ms *Service, obj *T) *core.ApplicationError {
 	var coll T
 
 	collection := ms.Database.Collection(coll.GetCollectionName())
@@ -98,15 +100,22 @@ func InsertObject[T ICollection](ctx context.Context, ms *Service, obj *T) *core
 	return nil
 }
 
-func InsertMany[T ICollection](ctx context.Context, ms *Service, objs []any, opts *options.InsertManyOptions) *core.ApplicationError {
+func InsertMany[T ICollection](ctx context.Context, ms *Service, objs []*T, opts *options.InsertManyOptions) *core.ApplicationError {
 	var coll T
+	list := make([]interface{}, len(objs))
+	for i, v := range objs {
+		list[i] = v
+	}
+
 	collection := ms.Database.Collection(coll.GetCollectionName())
-	res, errIns := collection.InsertMany(ctx, objs, opts)
+	res, errIns := collection.InsertMany(ctx, list, opts)
 	if errIns != nil {
 		return core.TechnicalErrorWithError(errIns)
 	}
-	if res.InsertedIDs == nil {
-		return core.NotFoundError()
+	if len(res.InsertedIDs) != len(objs) {
+		message := fmt.Sprintf("Mismatch insert %s requested %d vs inserted %d ", coll.GetCollectionName(), len(objs), len(res.InsertedIDs))
+		log.Error().Msgf(message)
+		return core.TechnicalErrorWithCodeAndMessage("INSERT-MISMATCH", message)
 	}
 	return nil
 }
