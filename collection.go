@@ -6,6 +6,7 @@ import (
 	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type ICollection interface {
@@ -81,4 +82,31 @@ func GetObjectsByFilter[T ICollection](ctx context.Context, ms *Service, filter 
 	}
 	return results, nil
 
+}
+
+func InsertObject[T ICollection](ctx context.Context, ms *Service, obj *T) *core.ApplicationError {
+	var coll T
+
+	collection := ms.Database.Collection(coll.GetCollectionName())
+	res, errIns := collection.InsertOne(ctx, obj)
+	if errIns != nil {
+		return core.TechnicalErrorWithError(errIns)
+	}
+	if res.InsertedID == nil {
+		return core.NotFoundError()
+	}
+	return nil
+}
+
+func InsertMany[T ICollection](ctx context.Context, ms *Service, objs []any, opts *options.InsertManyOptions) *core.ApplicationError {
+	var coll T
+	collection := ms.Database.Collection(coll.GetCollectionName())
+	res, errIns := collection.InsertMany(ctx, objs, opts)
+	if errIns != nil {
+		return core.TechnicalErrorWithError(errIns)
+	}
+	if res.InsertedIDs == nil {
+		return core.NotFoundError()
+	}
+	return nil
 }
