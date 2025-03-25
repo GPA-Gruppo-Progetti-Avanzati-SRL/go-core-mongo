@@ -131,7 +131,12 @@ func simpleArgs(function string, args map[string]interface{}, params any) (bson.
 	return bson.D{{Key: function, Value: args}}, nil
 }
 func match(function string, args map[string]interface{}, params any) (bson.D, *core.ApplicationError) {
-	filterM, err := buildFilter(params)
+	p, ok := params.(IFilter)
+	if !ok {
+		return nil, core.TechnicalErrorWithCodeAndMessage("MON-FIL", "Filtro non di tipo IFilter")
+	}
+
+	filterM, err := buildFilter(p)
 
 	if err != nil {
 		return nil, core.TechnicalErrorWithError(err)

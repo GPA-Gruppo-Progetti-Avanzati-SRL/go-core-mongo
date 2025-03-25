@@ -33,7 +33,7 @@ func GetObjectById[T ICollection](ctx context.Context, ms *Service, id string) (
 
 }
 
-func CountDocuments[T ICollection](ctx context.Context, ms *Service, filter any) (int64, *core.ApplicationError) {
+func CountDocuments[T ICollection](ctx context.Context, ms *Service, filter IFilter) (int64, *core.ApplicationError) {
 	var result T
 	collection := result.GetCollectionName()
 	filterB, errB := buildFilter(filter)
@@ -48,7 +48,7 @@ func CountDocuments[T ICollection](ctx context.Context, ms *Service, filter any)
 
 }
 
-func GetObjectByFilter[T ICollection](ctx context.Context, ms *Service, filter any) (*T, *core.ApplicationError) {
+func GetObjectByFilter[T ICollection](ctx context.Context, ms *Service, filter IFilter) (*T, *core.ApplicationError) {
 	var obj T
 	collection := obj.GetCollectionName()
 	filterB, errB := buildFilter(filter)
@@ -66,7 +66,7 @@ func GetObjectByFilter[T ICollection](ctx context.Context, ms *Service, filter a
 
 }
 
-func GetObjectsByFilter[T ICollection](ctx context.Context, ms *Service, filter any) ([]*T, *core.ApplicationError) {
+func GetObjectsByFilter[T ICollection](ctx context.Context, ms *Service, filter IFilter) ([]*T, *core.ApplicationError) {
 	var obj T
 	collection := obj.GetCollectionName()
 	filterB, errB := buildFilter(filter)
@@ -116,6 +116,44 @@ func InsertMany[T ICollection](ctx context.Context, ms *Service, objs []*T, opts
 		message := fmt.Sprintf("Mismatch insert %s requested %d vs inserted %d ", coll.GetCollectionName(), len(objs), len(res.InsertedIDs))
 		log.Error().Msgf(message)
 		return core.TechnicalErrorWithCodeAndMessage("INSERT-MISMATCH", message)
+	}
+	return nil
+}
+
+func UpdateOne[T ICollection](ctx context.Context, ms *Service, filter IFilter, update bson.M) *core.ApplicationError {
+	var coll T
+	filterB, errB := buildFilter(filter)
+	if errB != nil {
+		return core.TechnicalErrorWithError(errB)
+	}
+	collectionNotifiche := ms.Database.Collection(coll.GetCollectionName())
+	res, err := collectionNotifiche.UpdateOne(ctx, filterB, update)
+	if err != nil {
+		log.Error().Err(err).Msgf("Impossibile aggiornare %s %s", coll.GetCollectionName(), err.Error())
+		return core.TechnicalErrorWithError(err)
+	}
+	if res.ModifiedCount != 1 {
+		log.Error().Err(err).Msgf("Aggiornamento incoerente")
+		return core.TechnicalErrorWithCodeAndMessage("MON-AGGINC", "aggiornamento incoerente")
+	}
+	return nil
+}
+
+func UpdateMany[T ICollection](ctx context.Context, ms *Service, filter IFilter, update bson.M, len int) *core.ApplicationError {
+	var coll T
+	filterB, errB := buildFilter(filter)
+	if errB != nil {
+		return core.TechnicalErrorWithError(errB)
+	}
+	collectionNotifiche := ms.Database.Collection(coll.GetCollectionName())
+	res, err := collectionNotifiche.UpdateOne(ctx, filterB, update)
+	if err != nil {
+		log.Error().Err(err).Msgf("Impossibile aggiornare %s %s", coll.GetCollectionName(), err.Error())
+		return core.TechnicalErrorWithError(err)
+	}
+	if res.ModifiedCount != int64(len) {
+		log.Error().Err(err).Msgf("Aggiornamento incoerente")
+		return core.TechnicalErrorWithCodeAndMessage("MON-AGGINC", "aggiornamento incoerente")
 	}
 	return nil
 }

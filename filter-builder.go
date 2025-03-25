@@ -10,6 +10,9 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
+type IFilter interface {
+}
+
 var operatorHandlers = map[string]func(string, interface{}) (bson.M, error){
 	"$eq":     handleSimpleOperator,
 	"$ne":     handleSimpleOperator,
@@ -26,7 +29,7 @@ var operatorHandlers = map[string]func(string, interface{}) (bson.M, error){
 // La struct deve avere i campi taggati con:
 // - `field:"nome_campo_mongodb"`:  Il nome del campo in MongoDB.
 // - `operator:"$operatore"`: L'operatore MongoDB da usare (es. $eq, $in, $gt, $lt).
-func buildFilter(inputStruct interface{}) (bson.M, error) {
+func buildFilter(inputStruct IFilter) (bson.M, error) {
 	if inputStruct == nil {
 		return nil, fmt.Errorf("input non puo essere nil")
 	}
