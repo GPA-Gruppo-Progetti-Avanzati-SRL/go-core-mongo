@@ -11,6 +11,7 @@ import (
 )
 
 type IFilter interface {
+	GetFilterCollectionName() string
 }
 
 var operatorHandlers = map[string]func(string, interface{}) (bson.M, error){
