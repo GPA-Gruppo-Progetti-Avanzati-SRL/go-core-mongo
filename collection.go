@@ -175,7 +175,7 @@ func (ms *Service) ReplaceOne(ctx context.Context, filter IFilter, obj ICollecti
 		log.Error().Err(err).Msgf("Impossibile replace %s %s", obj.GetCollectionName(), err.Error())
 		return core.TechnicalErrorWithError(err)
 	}
-	if res.ModifiedCount != 1 {
+	if res.ModifiedCount != 1 && res.UpsertedCount != 1 {
 		log.Error().Err(err).Msgf("Aggiornamento incoerente")
 		return core.TechnicalErrorWithCodeAndMessage("MON-AGGINC", "aggiornamento incoerente")
 	}
