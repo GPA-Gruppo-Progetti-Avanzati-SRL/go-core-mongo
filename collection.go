@@ -103,7 +103,7 @@ func (ms *Service) InsertMany(ctx context.Context, objs []ICollection, opts *opt
 	collName := ""
 	list := make([]interface{}, 0)
 	for _, v := range objs {
-		if collName != "" {
+		if collName == "" {
 			collName = v.GetCollectionName()
 		}
 		if collName != v.GetCollectionName() {
