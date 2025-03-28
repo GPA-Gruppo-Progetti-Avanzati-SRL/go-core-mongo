@@ -101,15 +101,15 @@ func (ms *Service) InsertOne(ctx context.Context, obj ICollection) *core.Applica
 
 func (ms *Service) InsertMany(ctx context.Context, objs []ICollection, opts *options.InsertManyOptions) *core.ApplicationError {
 	collName := ""
-	list := make([]interface{}, len(objs))
-	for i, v := range objs {
-		list[i] = v
+	list := make([]interface{}, 0)
+	for _, v := range objs {
 		if collName != "" {
 			collName = v.GetCollectionName()
 		}
 		if collName != v.GetCollectionName() {
 			return core.TechnicalErrorWithCodeAndMessage("COLL-MIX", fmt.Sprintf("Get Collection Mix %s %s", collName, v.GetCollectionName()))
 		}
+		list = append(list, v)
 	}
 
 	collection := ms.Database.Collection(collName)
