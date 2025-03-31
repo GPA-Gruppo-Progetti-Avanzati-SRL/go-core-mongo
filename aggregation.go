@@ -38,7 +38,7 @@ func init() {
 		"$skip":      simpleParams,
 		"$limit":     simpleParams,
 		"$project":   simpleArgs,
-		"$sort":      simpleArgs,
+		"$sort":      sort,
 		"$group":     simpleArgs,
 		"$match":     match,
 		"$unionWith": unionWith,
@@ -142,6 +142,40 @@ func match(function string, args map[string]interface{}, params any) (bson.D, *c
 		return nil, core.TechnicalErrorWithError(err)
 	}
 	return bson.D{{Key: function, Value: filterM}}, nil
+}
+
+func sort(function string, args map[string]interface{}, params any) (bson.D, *core.ApplicationError) {
+	sortBson := bson.D{}
+	sortEl, ok := args["order"].([]any)
+	if !ok {
+		return nil, core.TechnicalErrorWithCodeAndMessage("MON-SOR", "order non trovato")
+	}
+
+	for _, sortField := range sortEl {
+		sortFi, sok := sortField.(map[string]interface{})
+		if !sok {
+			return nil, core.TechnicalErrorWithCodeAndMessage("MON-SOR", "no sort structure")
+
+		}
+
+		sortC, cok := sortFi["field"].(string)
+		if !cok {
+			return nil, core.TechnicalErrorWithCodeAndMessage("MON-SOR", "no sort field in sort")
+
+		}
+		sortV, vok := sortFi["verse"].(string)
+		if !vok {
+			return nil, core.TechnicalErrorWithCodeAndMessage("MON-SOR", "no  sort verse in sort")
+
+		}
+		order := 1 // Default to ascending
+		if sortV == "desc" {
+			order = -1
+		}
+		sortBson = append(sortBson, bson.E{Key: sortC, Value: order})
+	}
+
+	return bson.D{{Key: function, Value: sortBson}}, nil
 }
 
 func (ms *Service) ExecuteAggregation(ctx context.Context, name string, params map[string]any, opts ...*options.AggregateOptions) (*mongo.Cursor, *core.ApplicationError) {
