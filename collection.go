@@ -137,7 +137,7 @@ func (ms *Service) UpdateOne(ctx context.Context, filter IFilter, update bson.M,
 		log.Error().Err(err).Msgf("Impossibile aggiornare %s %s", filter.GetFilterCollectionName(), err.Error())
 		return core.TechnicalErrorWithError(err)
 	}
-	if res.ModifiedCount != 1 {
+	if res.ModifiedCount != 1 && res.UpsertedCount != 1 {
 		log.Error().Err(err).Msgf("Aggiornamento incoerente")
 		return core.TechnicalErrorWithCodeAndMessage("MON-AGGINC", "aggiornamento incoerente")
 	}
