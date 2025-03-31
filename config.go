@@ -32,8 +32,8 @@ type Config struct {
 	TLS                    TLSConfig      `json:"tls" mapstructure:"tls" yaml:"tls"`
 	HeartbeatInterval      *time.Duration `mapstructure:"heartbeat-interval" json:"heartbeat-interval" yaml:"heartbeat-interval"`
 	ServerSelectionTimeout *time.Duration `mapstructure:"server-selection-timeout" json:"server-selection-timeout" yaml:"server-selection-timeout"`
-	RetryWrites            *bool          `mapstructure:"reatry-writes" json:"reatry-writes" yaml:"reatry-writes"`
-	RetryReads             *bool          `mapstructure:"reatry-reads" json:"reatry-reads" yaml:"reatry-reads"`
+	RetryWrites            *bool          `mapstructure:"retry-writes" json:"retry-writes" yaml:"retry-writes"`
+	RetryReads             *bool          `mapstructure:"retry-reads" json:"retry-reads" yaml:"retry-reads"`
 	Compressor             []string       `mapstructure:"compressor" json:"compressor" yaml:"compressor"`
 	ZlibLevel              *int           `mapstructure:"zlib-level" json:"zlib-level" yaml:"zlib-level"`
 	ZstdLevel              *int           `mapstructure:"zstd-level" json:"zstd-level" yaml:"zstd-level"`
