@@ -86,10 +86,10 @@ func GetObjectsByFilter[T ICollection](ctx context.Context, ms *Service, filter 
 
 }
 
-func (ms *Service) InsertOne(ctx context.Context, obj ICollection) *core.ApplicationError {
+func (ms *Service) InsertOne(ctx context.Context, obj ICollection, opts ...*options.InsertOneOptions) *core.ApplicationError {
 
 	collection := ms.Database.Collection(obj.GetCollectionName())
-	res, errIns := collection.InsertOne(ctx, obj)
+	res, errIns := collection.InsertOne(ctx, obj, opts...)
 	if errIns != nil {
 		return core.TechnicalErrorWithError(errIns)
 	}
@@ -99,7 +99,7 @@ func (ms *Service) InsertOne(ctx context.Context, obj ICollection) *core.Applica
 	return nil
 }
 
-func (ms *Service) InsertMany(ctx context.Context, objs []ICollection, opts *options.InsertManyOptions) *core.ApplicationError {
+func (ms *Service) InsertMany(ctx context.Context, objs []ICollection, opts ...*options.InsertManyOptions) *core.ApplicationError {
 	collName := ""
 	list := make([]interface{}, 0)
 	for _, v := range objs {
@@ -113,7 +113,7 @@ func (ms *Service) InsertMany(ctx context.Context, objs []ICollection, opts *opt
 	}
 
 	collection := ms.Database.Collection(collName)
-	res, errIns := collection.InsertMany(ctx, list, opts)
+	res, errIns := collection.InsertMany(ctx, list, opts...)
 	if errIns != nil {
 		return core.TechnicalErrorWithError(errIns)
 	}
@@ -125,14 +125,14 @@ func (ms *Service) InsertMany(ctx context.Context, objs []ICollection, opts *opt
 	return nil
 }
 
-func (ms *Service) UpdateOne(ctx context.Context, filter IFilter, update bson.M) *core.ApplicationError {
+func (ms *Service) UpdateOne(ctx context.Context, filter IFilter, update bson.M, opts ...*options.UpdateOptions) *core.ApplicationError {
 
 	filterB, errB := buildFilter(filter)
 	if errB != nil {
 		return core.TechnicalErrorWithError(errB)
 	}
 	collectionNotifiche := ms.Database.Collection(filter.GetFilterCollectionName())
-	res, err := collectionNotifiche.UpdateOne(ctx, filterB, update)
+	res, err := collectionNotifiche.UpdateOne(ctx, filterB, update, opts...)
 	if err != nil {
 		log.Error().Err(err).Msgf("Impossibile aggiornare %s %s", filter.GetFilterCollectionName(), err.Error())
 		return core.TechnicalErrorWithError(err)
@@ -163,14 +163,14 @@ func (ms *Service) UpdateMany(ctx context.Context, filter IFilter, update bson.M
 	return nil
 }
 
-func (ms *Service) ReplaceOne(ctx context.Context, filter IFilter, obj ICollection, ro *options.ReplaceOptions) *core.ApplicationError {
+func (ms *Service) ReplaceOne(ctx context.Context, filter IFilter, obj ICollection, ro ...*options.ReplaceOptions) *core.ApplicationError {
 
 	filterB, errB := buildFilter(filter)
 	if errB != nil {
 		return core.TechnicalErrorWithError(errB)
 	}
 	collectionNotifiche := ms.Database.Collection(obj.GetCollectionName())
-	res, err := collectionNotifiche.ReplaceOne(ctx, filterB, obj, ro)
+	res, err := collectionNotifiche.ReplaceOne(ctx, filterB, obj, ro...)
 	if err != nil {
 		log.Error().Err(err).Msgf("Impossibile replace %s %s", obj.GetCollectionName(), err.Error())
 		return core.TechnicalErrorWithError(err)
