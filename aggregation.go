@@ -1,15 +1,18 @@
 package mongo
 
 import (
+	"bytes"
 	"context"
 	"embed"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"path/filepath"
+
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"gopkg.in/yaml.v3"
-	"path/filepath"
 
 	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app"
 	"go.mongodb.org/mongo-driver/bson"
@@ -237,10 +240,22 @@ func PipelineToJson(pipeline interface{}) string {
 	mappa := bson.M{"pipeline": pipeline}
 
 	value, err := bson.MarshalExtJSON(mappa, false, false)
-
 	if err != nil {
 		return ""
 	}
-	return string(value)
+	json, err := PrettyPrintJson(value)
+	if err != nil {
+		return ""
+	}
+	return "\n" + json
+}
 
+
+func PrettyPrintJson(jsonStr []byte) (string, error) {
+	var prettyJSON bytes.Buffer
+	err := json.Indent(&prettyJSON, jsonStr, "", "  ")
+	if err != nil {
+		return "", err
+	}
+	return prettyJSON.String(), nil
 }
