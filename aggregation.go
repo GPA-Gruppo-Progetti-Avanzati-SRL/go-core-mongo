@@ -1,10 +1,8 @@
 package mongo
 
 import (
-	"bytes"
 	"context"
 	"embed"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -251,11 +249,4 @@ func PipelineToJson(pipeline interface{}) string {
 }
 
 
-func PrettyPrintJson(jsonStr []byte) (string, error) {
-	var prettyJSON bytes.Buffer
-	err := json.Indent(&prettyJSON, jsonStr, "", "  ")
-	if err != nil {
-		return "", err
-	}
-	return prettyJSON.String(), nil
-}
+

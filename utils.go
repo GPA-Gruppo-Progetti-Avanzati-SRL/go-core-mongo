@@ -1,6 +1,7 @@
 package mongo
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -107,4 +108,13 @@ func convertDates(input map[string]interface{}) map[string]interface{} {
 		}
 	}
 	return input
+}
+
+func PrettyPrintJson(jsonStr []byte) (string, error) {
+	var prettyJSON bytes.Buffer
+	err := json.Indent(&prettyJSON, jsonStr, "", "  ")
+	if err != nil {
+		return "", err
+	}
+	return prettyJSON.String(), nil
 }

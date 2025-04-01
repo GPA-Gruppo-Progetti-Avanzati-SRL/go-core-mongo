@@ -128,6 +128,11 @@ func FilterToJson(filter any) string {
 	if err != nil {
 		return ""
 	}
-	return string(value)
+
+	json, err := PrettyPrintJson(value)
+	if err != nil {
+		return ""
+	}
+	return json
 
 }
