@@ -151,7 +151,7 @@ func (ms *Service) UpdateMany(ctx context.Context, filter IFilter, update bson.M
 		return core.TechnicalErrorWithError(errB)
 	}
 	collectionNotifiche := ms.Database.Collection(filter.GetFilterCollectionName())
-	res, err := collectionNotifiche.UpdateOne(ctx, filterB, update)
+	res, err := collectionNotifiche.UpdateMany(ctx, filterB, update)
 	if err != nil {
 		log.Error().Err(err).Msgf("Impossibile aggiornare %s %s", filter.GetFilterCollectionName(), err.Error())
 		return core.TechnicalErrorWithError(err)
