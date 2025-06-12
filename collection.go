@@ -86,6 +86,27 @@ func GetObjectsByFilter[T ICollection](ctx context.Context, ms *Service, filter 
 
 }
 
+func GetObjectsByFilterSorted[T ICollection](ctx context.Context, ms *Service, filter IFilter, sort map[string]int) ([]*T, *core.ApplicationError) {
+	var obj T
+	collection := obj.GetCollectionName()
+	filterB, errB := buildFilter(filter)
+	if errB != nil {
+		return nil, core.TechnicalErrorWithError(errB)
+	}
+	findOptions := options.Find().SetSort(sort)
+	cur, err := ms.Database.Collection(collection).Find(ctx, filterB, findOptions)
+	if err != nil {
+		return nil, core.TechnicalErrorWithError(err)
+	}
+	results := make([]*T, 0)
+	errCur := cur.All(ctx, &results)
+	if errCur != nil {
+		return nil, core.TechnicalErrorWithError(errCur)
+	}
+	return results, nil
+
+}
+
 func (ms *Service) InsertOne(ctx context.Context, obj ICollection, opts ...*options.InsertOneOptions) *core.ApplicationError {
 
 	collection := ms.Database.Collection(obj.GetCollectionName())

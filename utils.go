@@ -14,11 +14,18 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-func (ms *Service) GetIds(ctx context.Context, filter string, collectionName string, limit int) ([]string, *core.ApplicationError) {
+func (ms *Service) GetIds(ctx context.Context, filter string, collectionName string, sort string, limit int) ([]string, *core.ApplicationError) {
 	var filterMap map[string]interface{}
 	if err := json.Unmarshal([]byte(filter), &filterMap); err != nil {
-		log.Error().Msgf("error unmarshal")
-		return nil, core.TechnicalErrorWithCodeAndMessage("PROPERTIES", "error unmarshal")
+		log.Error().Err(err).Msgf("error unmarshal filter")
+		return nil, core.TechnicalErrorWithCodeAndMessage("PROPERTIES", "error unmarshal filter")
+	}
+	var sortMap map[string]int
+	if sort != "" {
+		if serr := json.Unmarshal([]byte(sort), &sortMap); serr != nil {
+			log.Error().Err(serr).Msgf("error unmarshal sort", serr.Error())
+			return nil, core.TechnicalErrorWithCodeAndMessage("PROPERTIES", "error unmarshal sort")
+		}
 	}
 
 	// Converti eventuali stringhe ISO 8601 in oggetti time.Time
@@ -29,6 +36,9 @@ func (ms *Service) GetIds(ctx context.Context, filter string, collectionName str
 
 	projection := bson.M{"_id": 1} // Includi solo il campo _id
 	findOptions := options.Find().SetProjection(projection).SetLimit(int64(limit))
+	if sort != "" {
+		findOptions = findOptions.SetSort(sortMap)
+	}
 
 	cursor, err := ms.Database.Collection(collectionName).Find(ctx, filterM, findOptions)
 	if err != nil {
