@@ -1,13 +1,13 @@
-package mongo
+package coremongo
 
 import (
 	"context"
 	"embed"
-	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app"
-	"github.com/rs/zerolog/log"
+	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-mongo-common/mongolks"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/writeconcern"
+
 	"go.uber.org/fx"
 )
 
@@ -15,64 +15,37 @@ type Core struct {
 	fx.In
 	AggregationFiles AggregationDirectory `optional:"true"`
 }
+type AggregationsPath string
 
-type Service struct {
-	client     *mongo.Client
-	Database   *mongo.Database
-	poolMetric *poolMetric
-}
+func NewService(config *mongolks.Config, lc fx.Lifecycle, mc Core, aggregationPath *AggregationsPath) *mongolks.LinkedService {
 
-func NewService(config *Config, lc fx.Lifecycle, mc Core) *Service {
-
-	mongoService := &Service{}
-
-	mongoService.poolMetric = &poolMetric{}
-	mongoService.poolMetric.init(config.MetricConfig)
+	mls, _ := mongolks.NewLinkedServiceWithConfig(*config)
 
 	lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
-			var err error
-			opts := configureMongo(config, mongoService.poolMetric)
-			mongoService.client, err = mongo.Connect(ctx, opts)
-			mongoService.Database = mongoService.client.Database(config.Database)
-			if err != nil {
-				log.Fatal().Err(err).Msg("Failed to connect to MongoDB")
-				return err
-			}
-			err2 := mongoService.client.Ping(context.TODO(), nil)
-			if err2 != nil {
-				log.Fatal().Err(err).Msg("Failed to ping MongoDB")
-			}
-			return nil
+			return mls.Connect(ctx)
+
 		},
 		OnStop: func(ctx context.Context) error {
-
-			if mongoService.client != nil {
-				log.Info().Msg("Disconnetting MongoDB")
-				errDis := mongoService.client.Disconnect(ctx)
-				if errDis != nil {
-					log.Fatal().Err(errDis).Msg("Failed disconnect MongoDB")
-				}
-				return errDis
-			}
+			mls.Disconnect(ctx)
 			return nil
 		}})
 
-	if config.Aggregations != "" {
-		LoadAggregations(config.Aggregations, embed.FS(mc.AggregationFiles))
+	if aggregationPath != nil {
+		LoadAggregations(*aggregationPath, embed.FS(mc.AggregationFiles))
 	}
 
-	return mongoService
+	return mls
 
 }
 
-func (ms *Service) ExecTransaction(ctx context.Context, transaction func(sessCtx mongo.SessionContext) error) *core.ApplicationError {
+func ExecTransaction(ctx context.Context, ms *mongolks.LinkedService, transaction func(sessCtx mongo.SessionContext) error) error {
 	wc := writeconcern.Majority()
 	txnOptions := options.Transaction().SetWriteConcern(wc)
 	// Starts a session on the client
-	session, err := ms.client.StartSession()
+	session, err := ms.Db().Client().StartSession()
 	if err != nil {
-		return core.TechnicalErrorWithError(err)
+		return err
 	}
 
 	// Defers ending the session after the transaction is committed or ended
@@ -94,9 +67,5 @@ func (ms *Service) ExecTransaction(ctx context.Context, transaction func(sessCtx
 		// Commit della transazione
 		return session.CommitTransaction(sessCtx)
 	})
-	if err != nil {
-		return core.TechnicalErrorWithError(err)
-	}
-	return nil
-
+	return err
 }

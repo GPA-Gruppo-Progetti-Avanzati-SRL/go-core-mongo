@@ -1,4 +1,4 @@
-package mongo
+package coremongo
 
 import (
 	"bytes"
@@ -6,15 +6,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"time"
-
 	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app"
+	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-mongo-common/mongolks"
 	"github.com/rs/zerolog/log"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"time"
 )
 
-func (ms *Service) GetIds(ctx context.Context, filter string, collectionName string, sort string, limit int) ([]string, *core.ApplicationError) {
+func GetIds(ctx context.Context, ms *mongolks.LinkedService, filter string, collectionName string, sort string, limit int) ([]string, *core.ApplicationError) {
 	var filterMap map[string]interface{}
 	if err := json.Unmarshal([]byte(filter), &filterMap); err != nil {
 		log.Error().Err(err).Msgf("error unmarshal filter")
@@ -40,7 +40,7 @@ func (ms *Service) GetIds(ctx context.Context, filter string, collectionName str
 		findOptions = findOptions.SetSort(sortMap)
 	}
 
-	cursor, err := ms.Database.Collection(collectionName).Find(ctx, filterM, findOptions)
+	cursor, err := ms.GetCollection(collectionName, "").Find(ctx, filterM, findOptions)
 	if err != nil {
 		errMsg := fmt.Errorf("error Mongo: %s", err.Error())
 		return nil, core.TechnicalErrorWithError(errMsg)
@@ -61,8 +61,8 @@ func (ms *Service) GetIds(ctx context.Context, filter string, collectionName str
 	return ids, nil
 }
 
-func (ms *Service) GetSequence(ctx context.Context, sequenceCollection, numeroOrdineSequenceName string) (int, *core.ApplicationError) {
-	seqColl := ms.Database.Collection(sequenceCollection)
+func GetSequence(ctx context.Context, ms *mongolks.LinkedService, sequenceCollection, numeroOrdineSequenceName string) (int, *core.ApplicationError) {
+	seqColl := ms.GetCollection(sequenceCollection, "")
 
 	// Define the filter and update for the findAndModify equivalent
 	filter := bson.M{"_id": numeroOrdineSequenceName}
@@ -88,8 +88,8 @@ func (ms *Service) GetSequence(ctx context.Context, sequenceCollection, numeroOr
 
 }
 
-func (ms *Service) UpdateSingleRecord(ctx context.Context, collectionName string, filterR interface{}, updateR interface{}) error {
-	collectionRicorrenza := ms.Database.Collection(collectionName)
+func UpdateSingleRecord(ctx context.Context, ms *mongolks.LinkedService, collectionName string, filterR interface{}, updateR interface{}) error {
+	collectionRicorrenza := ms.GetCollection(collectionName, "")
 	resR, err := collectionRicorrenza.UpdateOne(ctx, filterR, updateR)
 	if err != nil {
 		log.Error().Err(err).Msgf("Impossibile aggiornare")

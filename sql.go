@@ -1,8 +1,9 @@
-package mongo
+package coremongo
 
 import (
 	"context"
 	"errors"
+	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-mongo-common/mongolks"
 	"go.mongodb.org/mongo-driver/mongo"
 	"regexp"
 	"strconv"
@@ -317,14 +318,14 @@ func (q *Query) ToMongoQuery() bson.M {
 }
 
 // ExecuteQuery esegue la query SQL convertita su MongoDB
-func (ms *Service) ExecuteQuery(ctx context.Context, sql string) (*mongo.Cursor, error) {
+func ExecuteQuery(ctx context.Context, ms *mongolks.LinkedService, sql string) (*mongo.Cursor, error) {
 	query, err := ParseSQL(sql)
 	if err != nil {
 		return nil, err
 	}
 
 	// Imposta la collezione corretta
-	collection := ms.Database.Collection(query.Collection)
+	collection := ms.GetCollection(query.Collection, "")
 
 	// Costruisci la pipeline di aggregazione con $match
 	pipeline := []bson.M{}

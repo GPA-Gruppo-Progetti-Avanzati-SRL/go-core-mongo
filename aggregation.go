@@ -1,10 +1,11 @@
-package mongo
+package coremongo
 
 import (
 	"context"
 	"embed"
 	"errors"
 	"fmt"
+	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-mongo-common/mongolks"
 	"path/filepath"
 
 	"github.com/rs/zerolog"
@@ -45,15 +46,15 @@ func init() {
 		"$unionWith": unionWith,
 	}
 }
-func LoadAggregations(aggregationFolder string, aggregationFiles embed.FS) {
+func LoadAggregations(aggregationFolder AggregationsPath, aggregationFiles embed.FS) {
 	Aggregations = make(map[string]*Aggregation)
-	dir, err := aggregationFiles.ReadDir(aggregationFolder)
+	dir, err := aggregationFiles.ReadDir(string(aggregationFolder))
 	if err != nil {
 		log.Fatal().Err(err).Msg("aggregationFolder")
 	}
 	for _, file := range dir {
 		log.Info().Msgf("Loading Aggregation %s", file.Name())
-		yamlFile, errRead := aggregationFiles.ReadFile(filepath.Join(aggregationFolder, file.Name()))
+		yamlFile, errRead := aggregationFiles.ReadFile(filepath.Join(string(aggregationFolder), file.Name()))
 		if errRead != nil {
 			log.Error().Err(errRead).Msg("aggregation read" + file.Name())
 			continue
@@ -179,32 +180,33 @@ func sort(function string, args map[string]interface{}, params any) (bson.D, *co
 	return bson.D{{Key: function, Value: sortBson}}, nil
 }
 
-func (ms *Service) ExecuteAggregation(ctx context.Context, name string, params map[string]any, opts ...*options.AggregateOptions) (*mongo.Cursor, *core.ApplicationError) {
-	aggregation, ok := Aggregations[name]
-	if !ok {
-		return nil, core.BusinessErrorWithCodeAndMessage("NOT-FOUND", fmt.Sprintf("aggregation '%s' not found", name))
-	}
-	mp, err := GenerateAggregation(aggregation, params)
-
-	if err != nil {
-		return nil, err
-	}
-	if zerolog.GlobalLevel() < zerolog.DebugLevel {
-		value := PipelineToJson(mp)
-		log.Trace().Msg(value)
-	}
-
-	cur, errAgg := ms.Database.Collection(aggregation.Collection).Aggregate(ctx, mp, opts...)
-	if errAgg != nil {
-		if errors.Is(err, mongo.ErrNoDocuments) {
-			return nil, core.NotFoundError()
+/*
+	func ExecuteAggregation(ctx context.Context,ls *mongolks.LinkedService,  name string, params map[string]any, opts ...*options.AggregateOptions) (*mongo.Cursor, *core.ApplicationError) {
+		aggregation, ok := Aggregations[name]
+		if !ok {
+			return nil, core.BusinessErrorWithCodeAndMessage("NOT-FOUND", fmt.Sprintf("aggregation '%s' not found", name))
 		}
-		return nil, core.TechnicalErrorWithError(errAgg)
-	}
-	return cur, nil
-}
+		mp, err := GenerateAggregation(aggregation, params)
 
-func ExecuteAggregation[T any](ctx context.Context, ms *Service, name string, params map[string]any, opts ...*options.AggregateOptions) ([]*T, *core.ApplicationError) {
+		if err != nil {
+			return nil, err
+		}
+		if zerolog.GlobalLevel() < zerolog.DebugLevel {
+			value := PipelineToJson(mp)
+			log.Trace().Msg(value)
+		}
+
+		cur, errAgg := ls.GetCollection(aggregation.Collection,"").Aggregate(ctx, mp, opts...)
+		if errAgg != nil {
+			if errors.Is(err, mongo.ErrNoDocuments) {
+				return nil, core.NotFoundError()
+			}
+			return nil, core.TechnicalErrorWithError(errAgg)
+		}
+		return cur, nil
+	}
+*/
+func ExecuteAggregation[T any](ctx context.Context, ls *mongolks.LinkedService, name string, params map[string]any, opts ...*options.AggregateOptions) ([]*T, *core.ApplicationError) {
 	aggregation, ok := Aggregations[name]
 	if !ok {
 		return nil, core.BusinessErrorWithCodeAndMessage("NOT-FOUND", fmt.Sprintf("aggregation '%s' not found", name))
@@ -219,7 +221,7 @@ func ExecuteAggregation[T any](ctx context.Context, ms *Service, name string, pa
 		log.Trace().Msg(value)
 	}
 
-	cur, errAgg := ms.Database.Collection(aggregation.Collection).Aggregate(ctx, mp, opts...)
+	cur, errAgg := ls.GetCollection(aggregation.Collection, "").Aggregate(ctx, mp, opts...)
 	if errAgg != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return nil, core.NotFoundError()
@@ -247,6 +249,3 @@ func PipelineToJson(pipeline interface{}) string {
 	}
 	return "\n" + json
 }
-
-
-

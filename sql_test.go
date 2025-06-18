@@ -1,4 +1,4 @@
-package mongo
+package coremongo
 
 import (
 	"encoding/json"
