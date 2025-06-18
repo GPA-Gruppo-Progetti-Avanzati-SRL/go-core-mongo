@@ -2,14 +2,8 @@ cloud.google.com/go v0.34.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMT
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app v0.0.4 h1:ahHE6EXq/XhaOJiwd4+7kEE8Ue+82y8GhPeyDlYCfqk=
 github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app v0.0.4/go.mod h1:+szqcA6dffYiOMfA6eFNYg15mfyB7BRC7Ht2c/f27kY=
-github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-common v0.1.80 h1:cyH3Apeu0BnVw1k2zQwth0oRHcZaDufRY5Qg7PHlw+Y=
-github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-common v0.1.80/go.mod h1:4WYfJ0LgWLu38TukgFrFN4/zLePQ1BhFkpH/k28zRlA=
 github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-common v0.1.81 h1:GH6d6pe+pZ8+HIUnLkyZgyfBNmcV5HDUClhJIHl3bB8=
 github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-common v0.1.81/go.mod h1:4WYfJ0LgWLu38TukgFrFN4/zLePQ1BhFkpH/k28zRlA=
-github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-mongo-common v0.0.80-RCH h1:S7lfxMnVrc019l3xogpT1/IGIbHCXD6nbPBIc72eU6c=
-github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-mongo-common v0.0.80-RCH/go.mod h1:S5yrKIsj5BuUhbXDiVVVpEkE2Jw4+C+JmJBraEGyAnE=
-github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-mongo-common v0.0.80-RCM.0.20250618075958-2371b5d99639 h1:zcByNfACodGiryf+a476ojfkdCBwMhn2zLmX0Plz5W4=
-github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-mongo-common v0.0.80-RCM.0.20250618075958-2371b5d99639/go.mod h1:S5yrKIsj5BuUhbXDiVVVpEkE2Jw4+C+JmJBraEGyAnE=
 github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-mongo-common v0.0.80-RCO h1:fOK5MTf3aIrfNUbnAYSMN0YAeK4987ThVPLB/Ncfnl8=
 github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-mongo-common v0.0.80-RCO/go.mod h1:5IWaT0i8hC08KUrc7Jv5CQTfbeg6fyV/qI+rf/lWcKA=
 github.com/alecthomas/template v0.0.0-20160405071501-a0175ee3bccc/go.mod h1:LOuyumcjzFXgccqObfd/Ljyb9UuFJ6TxHnclSeseNhc=
