@@ -2,6 +2,7 @@ package coremongo
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app"
@@ -10,6 +11,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/mongo/writeconcern"
 )
 
 type ICollection interface {
@@ -200,6 +202,128 @@ func ReplaceOne(ctx context.Context, ms *mongolks.LinkedService, filter IFilter,
 	if res.ModifiedCount != 1 && res.UpsertedCount != 1 {
 		log.Error().Err(err).Msgf("Aggiornamento incoerente")
 		return core.TechnicalErrorWithCodeAndMessage("MON-AGGINC", "aggiornamento incoerente")
+	}
+	return nil
+}
+
+func ExecTransaction(ctx context.Context, ms *mongolks.LinkedService, transaction func(sessCtx mongo.SessionContext) error) *core.ApplicationError {
+	wc := writeconcern.Majority()
+	txnOptions := options.Transaction().SetWriteConcern(wc)
+	// Starts a session on the client
+	session, err := ms.Db().Client().StartSession()
+	if err != nil {
+		return core.TechnicalErrorWithError(err)
+	}
+
+	// Defers ending the session after the transaction is committed or ended
+	defer session.EndSession(ctx)
+
+	// Esecuzione della transazione
+	err = mongo.WithSession(ctx, session, func(sessCtx mongo.SessionContext) error {
+		// Inizia la transazione
+		if errSt := session.StartTransaction(txnOptions); errSt != nil {
+			return errSt
+		}
+
+		// Esegue la transazione con il callback
+		if errT := transaction(sessCtx); errT != nil {
+			session.AbortTransaction(sessCtx) // Rollback
+			return errT
+		}
+
+		// Commit della transazione
+		return session.CommitTransaction(sessCtx)
+	})
+	if err != nil {
+		return core.TechnicalErrorWithError(err)
+	}
+	return nil
+}
+
+func GetIds(ctx context.Context, ms *mongolks.LinkedService, filter string, collectionName string, sort string, limit int) ([]string, *core.ApplicationError) {
+	var filterMap map[string]interface{}
+	if err := json.Unmarshal([]byte(filter), &filterMap); err != nil {
+		log.Error().Err(err).Msgf("error unmarshal filter")
+		return nil, core.TechnicalErrorWithCodeAndMessage("PROPERTIES", "error unmarshal filter")
+	}
+	var sortMap map[string]int
+	if sort != "" {
+		if serr := json.Unmarshal([]byte(sort), &sortMap); serr != nil {
+			log.Error().Err(serr).Msgf("error unmarshal sort", serr.Error())
+			return nil, core.TechnicalErrorWithCodeAndMessage("PROPERTIES", "error unmarshal sort")
+		}
+	}
+
+	// Converti eventuali stringhe ISO 8601 in oggetti time.Time
+	filterMap = convertDates(filterMap)
+
+	// Converti il filtro finale in bson.M
+	filterM := bson.M(filterMap)
+
+	projection := bson.M{"_id": 1} // Includi solo il campo _id
+	findOptions := options.Find().SetProjection(projection).SetLimit(int64(limit))
+	if sort != "" {
+		findOptions = findOptions.SetSort(sortMap)
+	}
+
+	cursor, err := ms.GetCollection(collectionName, "").Find(ctx, filterM, findOptions)
+	if err != nil {
+		errMsg := fmt.Errorf("error Mongo: %s", err.Error())
+		return nil, core.TechnicalErrorWithError(errMsg)
+	}
+	defer cursor.Close(ctx)
+
+	var ids []string
+	for cursor.Next(ctx) {
+		var result struct {
+			Id string `bson:"_id"` // Campo _id come stringa
+		}
+		if errDecode := cursor.Decode(&result); errDecode != nil {
+			return nil, core.TechnicalErrorWithError(errDecode)
+		}
+		ids = append(ids, result.Id)
+	}
+
+	return ids, nil
+}
+
+func GetSequence(ctx context.Context, ms *mongolks.LinkedService, sequenceCollection, numeroOrdineSequenceName string) (int, *core.ApplicationError) {
+	seqColl := ms.GetCollection(sequenceCollection, "")
+
+	// Define the filter and update for the findAndModify equivalent
+	filter := bson.M{"_id": numeroOrdineSequenceName}
+	update := bson.M{"$inc": bson.M{"sequence": 1}}
+
+	// Set options to return the new document after update
+	opts := options.FindOneAndUpdate().
+		SetReturnDocument(options.After).
+		SetProjection(bson.M{"sequence": 1, "_id": 0})
+
+	// Perform the FindOneAndUpdate operation
+	var result bson.M
+	err := seqColl.FindOneAndUpdate(ctx, filter, update, opts).Decode(&result)
+	if err != nil {
+		return 0, core.TechnicalErrorWithError(err)
+	}
+
+	if sequence, ok := result["sequence"].(int32); ok { // Assuming sequence is an int32
+		return int(sequence), nil
+	} else {
+		return 0, core.TechnicalErrorWithCodeAndMessage("SEQ-INV", "sequence is not an integer")
+	}
+
+}
+
+func UpdateSingleRecord(ctx context.Context, ms *mongolks.LinkedService, collectionName string, filterR interface{}, updateR interface{}) error {
+	collectionRicorrenza := ms.GetCollection(collectionName, "")
+	resR, err := collectionRicorrenza.UpdateOne(ctx, filterR, updateR)
+	if err != nil {
+		log.Error().Err(err).Msgf("Impossibile aggiornare")
+		return err
+	}
+	if resR.ModifiedCount != 1 {
+		log.Error().Err(err).Msgf("Aggiornamento %s incoerente", collectionName)
+		return errors.New("aggiornamento incoerente " + collectionName)
 	}
 	return nil
 }
