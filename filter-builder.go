@@ -92,9 +92,9 @@ func buildFilter(inputStruct IFilter) (bson.M, error) {
 		}
 
 	}
-	if zerolog.GlobalLevel() < zerolog.InfoLevel {
+	if zerolog.GlobalLevel() < zerolog.DebugLevel {
 
-		log.Debug().Msgf("mongo filter: %v", FilterToJson(filter))
+		log.Trace().Msgf("mongo filter: %v", FilterToJson(filter))
 	}
 
 	return filter, nil
