@@ -1,17 +1,19 @@
 package coremongo
 
 import (
+	"context"
 	"fmt"
-	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 	"maps"
 	"reflect"
+
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 
 	"go.mongodb.org/mongo-driver/bson"
 )
 
 type IFilter interface {
-	GetFilterCollectionName() string
+	GetFilterCollectionName(ctx context.Context) string
 }
 
 var operatorHandlers = map[string]func(string, interface{}) (bson.M, error){

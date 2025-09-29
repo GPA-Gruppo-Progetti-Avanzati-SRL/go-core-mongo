@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+
 	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app"
 	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-mongo-common/mongolks"
 	"github.com/rs/zerolog/log"
@@ -15,13 +16,13 @@ import (
 )
 
 type ICollection interface {
-	GetCollectionName() string
+	GetCollectionName(ctx context.Context) string
 }
 
 func GetObjectById[T ICollection](ctx context.Context, ms *mongolks.LinkedService, id string) (*T, *core.ApplicationError) {
 	var result T
 
-	collection := result.GetCollectionName()
+	collection := result.GetCollectionName(ctx)
 	filter := bson.D{
 		bson.E{Key: "_id", Value: id},
 	}
@@ -38,7 +39,7 @@ func GetObjectById[T ICollection](ctx context.Context, ms *mongolks.LinkedServic
 
 func CountDocuments(ctx context.Context, ms *mongolks.LinkedService, filter IFilter) (int64, *core.ApplicationError) {
 
-	collection := filter.GetFilterCollectionName()
+	collection := filter.GetFilterCollectionName(ctx)
 	filterB, errB := buildFilter(filter)
 	if errB != nil {
 		return 0, core.TechnicalErrorWithError(errB)
@@ -53,7 +54,7 @@ func CountDocuments(ctx context.Context, ms *mongolks.LinkedService, filter IFil
 
 func GetObjectByFilter[T ICollection](ctx context.Context, ms *mongolks.LinkedService, filter IFilter) (*T, *core.ApplicationError) {
 	var obj T
-	collection := obj.GetCollectionName()
+	collection := obj.GetCollectionName(ctx)
 	filterB, errB := buildFilter(filter)
 	if errB != nil {
 		return nil, core.TechnicalErrorWithError(errB)
@@ -71,7 +72,7 @@ func GetObjectByFilter[T ICollection](ctx context.Context, ms *mongolks.LinkedSe
 
 func GetObjectsByFilter[T ICollection](ctx context.Context, ms *mongolks.LinkedService, filter IFilter) ([]*T, *core.ApplicationError) {
 	var obj T
-	collection := obj.GetCollectionName()
+	collection := obj.GetCollectionName(ctx)
 	filterB, errB := buildFilter(filter)
 	if errB != nil {
 		return nil, core.TechnicalErrorWithError(errB)
@@ -91,7 +92,7 @@ func GetObjectsByFilter[T ICollection](ctx context.Context, ms *mongolks.LinkedS
 
 func GetObjectsByFilterSorted[T ICollection](ctx context.Context, ms *mongolks.LinkedService, filter IFilter, sort map[string]int) ([]*T, *core.ApplicationError) {
 	var obj T
-	collection := obj.GetCollectionName()
+	collection := obj.GetCollectionName(ctx)
 	filterB, errB := buildFilter(filter)
 	if errB != nil {
 		return nil, core.TechnicalErrorWithError(errB)
@@ -112,7 +113,7 @@ func GetObjectsByFilterSorted[T ICollection](ctx context.Context, ms *mongolks.L
 
 func InsertOne(ctx context.Context, ms *mongolks.LinkedService, obj ICollection, opts ...*options.InsertOneOptions) *core.ApplicationError {
 
-	collection := ms.GetCollection(obj.GetCollectionName(), "")
+	collection := ms.GetCollection(obj.GetCollectionName(ctx), "")
 	res, errIns := collection.InsertOne(ctx, obj, opts...)
 	if errIns != nil {
 		return core.TechnicalErrorWithError(errIns)
@@ -128,10 +129,10 @@ func InsertMany(ctx context.Context, ms *mongolks.LinkedService, objs []ICollect
 	list := make([]interface{}, 0)
 	for _, v := range objs {
 		if collName == "" {
-			collName = v.GetCollectionName()
+			collName = v.GetCollectionName(ctx)
 		}
-		if collName != v.GetCollectionName() {
-			return core.TechnicalErrorWithCodeAndMessage("COLL-MIX", fmt.Sprintf("Get Collection Mix %s %s", collName, v.GetCollectionName()))
+		if collName != v.GetCollectionName(ctx) {
+			return core.TechnicalErrorWithCodeAndMessage("COLL-MIX", fmt.Sprintf("Get Collection Mix %s %s", collName, v.GetCollectionName(ctx)))
 		}
 		list = append(list, v)
 	}
@@ -155,10 +156,10 @@ func UpdateOne(ctx context.Context, ms *mongolks.LinkedService, filter IFilter, 
 	if errB != nil {
 		return core.TechnicalErrorWithError(errB)
 	}
-	collectionNotifiche := ms.GetCollection(filter.GetFilterCollectionName(), "")
+	collectionNotifiche := ms.GetCollection(filter.GetFilterCollectionName(ctx), "")
 	res, err := collectionNotifiche.UpdateOne(ctx, filterB, update, opts...)
 	if err != nil {
-		log.Error().Err(err).Msgf("Impossibile aggiornare %s %s", filter.GetFilterCollectionName(), err.Error())
+		log.Error().Err(err).Msgf("Impossibile aggiornare %s %s", filter.GetFilterCollectionName(ctx), err.Error())
 		return core.TechnicalErrorWithError(err)
 	}
 	if res.ModifiedCount != 1 && res.UpsertedCount != 1 {
@@ -174,10 +175,10 @@ func UpdateMany(ctx context.Context, ms *mongolks.LinkedService, filter IFilter,
 	if errB != nil {
 		return core.TechnicalErrorWithError(errB)
 	}
-	collectionNotifiche := ms.GetCollection(filter.GetFilterCollectionName(), "")
+	collectionNotifiche := ms.GetCollection(filter.GetFilterCollectionName(ctx), "")
 	res, err := collectionNotifiche.UpdateMany(ctx, filterB, update)
 	if err != nil {
-		log.Error().Err(err).Msgf("Impossibile aggiornare %s %s", filter.GetFilterCollectionName(), err.Error())
+		log.Error().Err(err).Msgf("Impossibile aggiornare %s %s", filter.GetFilterCollectionName(ctx), err.Error())
 		return core.TechnicalErrorWithError(err)
 	}
 	if res.ModifiedCount != int64(len) {
@@ -193,10 +194,10 @@ func ReplaceOne(ctx context.Context, ms *mongolks.LinkedService, filter IFilter,
 	if errB != nil {
 		return core.TechnicalErrorWithError(errB)
 	}
-	collectionNotifiche := ms.GetCollection(obj.GetCollectionName(), "")
+	collectionNotifiche := ms.GetCollection(obj.GetCollectionName(ctx), "")
 	res, err := collectionNotifiche.ReplaceOne(ctx, filterB, obj, ro...)
 	if err != nil {
-		log.Error().Err(err).Msgf("Impossibile replace %s %s", obj.GetCollectionName(), err.Error())
+		log.Error().Err(err).Msgf("Impossibile replace %s %s", obj.GetCollectionName(ctx), err.Error())
 		return core.TechnicalErrorWithError(err)
 	}
 	if res.ModifiedCount != 1 && res.UpsertedCount != 1 {
