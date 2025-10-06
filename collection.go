@@ -79,12 +79,13 @@ func GetObjectsByFilter[T ICollection](ctx context.Context, ms *mongolks.LinkedS
 	}
 	cur, err := ms.GetCollection(collection, "").Find(ctx, filterB)
 	if err != nil {
-		return nil, core.TechnicalErrorWithError(err)
+		return nil, core.TechnicalErrorWithCodeAndMessage("MONGO-GOBF-ERRFIND", err.Error())
 	}
+	defer cur.Close(ctx)
 	results := make([]*T, 0)
 	errCur := cur.All(ctx, &results)
 	if errCur != nil {
-		return nil, core.TechnicalErrorWithError(errCur)
+		return nil, core.TechnicalErrorWithCodeAndMessage("MONGO-GOBF-ERRCUR", errCur.Error())
 	}
 	return results, nil
 
@@ -100,12 +101,13 @@ func GetObjectsByFilterSorted[T ICollection](ctx context.Context, ms *mongolks.L
 	findOptions := options.Find().SetSort(sort)
 	cur, err := ms.GetCollection(collection, "").Find(ctx, filterB, findOptions)
 	if err != nil {
-		return nil, core.TechnicalErrorWithError(err)
+		return nil, core.TechnicalErrorWithCodeAndMessage("MONGO-GOBFS-ERRFIND", err.Error())
 	}
+	defer cur.Close(ctx)
 	results := make([]*T, 0)
 	errCur := cur.All(ctx, &results)
 	if errCur != nil {
-		return nil, core.TechnicalErrorWithError(errCur)
+		return nil, core.TechnicalErrorWithCodeAndMessage("MONGO-GOBFS-ERRFIND", errCur.Error())
 	}
 	return results, nil
 

@@ -5,8 +5,9 @@ import (
 	"embed"
 	"errors"
 	"fmt"
-	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-mongo-common/mongolks"
 	"path/filepath"
+
+	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-mongo-common/mongolks"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -223,14 +224,15 @@ func ExecuteAggregation[T any](ctx context.Context, ls *mongolks.LinkedService, 
 
 	cur, errAgg := ls.GetCollection(aggregation.Collection, "").Aggregate(ctx, mp, opts...)
 	if errAgg != nil {
-		if errors.Is(err, mongo.ErrNoDocuments) {
+		if errors.Is(errAgg, mongo.ErrNoDocuments) {
 			return nil, core.NotFoundError()
 		}
-		return nil, core.TechnicalErrorWithError(errAgg)
+		return nil, core.TechnicalErrorWithCodeAndMessage("MONGO-EXECAGGR", errAgg.Error())
 	}
+	defer cur.Close(ctx)
 	results := make([]*T, 0)
 	if errCur := cur.All(ctx, &results); errCur != nil {
-		return nil, core.TechnicalErrorWithError(errCur)
+		return nil, core.TechnicalErrorWithCodeAndMessage("MONGO-EXECAGGR-CUR", errCur.Error())
 	}
 
 	return results, nil
@@ -243,9 +245,5 @@ func PipelineToJson(pipeline interface{}) string {
 	if err != nil {
 		return ""
 	}
-	json, err := PrettyPrintJson(value)
-	if err != nil {
-		return ""
-	}
-	return "\n" + json
+	return "\n" + string(value)
 }
