@@ -11,12 +11,12 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	"gopkg.in/yaml.v3"
 
 	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 var Aggregations map[string]*Aggregation
@@ -207,7 +207,7 @@ func sort(function string, args map[string]interface{}, params any) (bson.D, *co
 		return cur, nil
 	}
 */
-func ExecuteAggregation[T any](ctx context.Context, ls *mongolks.LinkedService, name string, params map[string]any, opts ...*options.AggregateOptions) ([]*T, *core.ApplicationError) {
+func ExecuteAggregation[T any](ctx context.Context, ls *mongolks.LinkedService, name string, params map[string]any, opts ...options.Lister[options.AggregateOptions]) ([]*T, *core.ApplicationError) {
 	aggregation, ok := Aggregations[name]
 	if !ok {
 		return nil, core.BusinessErrorWithCodeAndMessage("NOT-FOUND", fmt.Sprintf("aggregation '%s' not found", name))

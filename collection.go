@@ -9,10 +9,10 @@ import (
 	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app"
 	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-mongo-common/mongolks"
 	"github.com/rs/zerolog/log"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
-	"go.mongodb.org/mongo-driver/mongo/writeconcern"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/mongo/writeconcern"
 )
 
 type ICollection interface {
@@ -113,7 +113,7 @@ func GetObjectsByFilterSorted[T ICollection](ctx context.Context, ms *mongolks.L
 
 }
 
-func InsertOne(ctx context.Context, ms *mongolks.LinkedService, obj ICollection, opts ...*options.InsertOneOptions) *core.ApplicationError {
+func InsertOne(ctx context.Context, ms *mongolks.LinkedService, obj ICollection, opts ...options.Lister[options.InsertOneOptions]) *core.ApplicationError {
 
 	collection := ms.GetCollection(obj.GetCollectionName(ctx), "")
 	res, errIns := collection.InsertOne(ctx, obj, opts...)
@@ -126,7 +126,7 @@ func InsertOne(ctx context.Context, ms *mongolks.LinkedService, obj ICollection,
 	return nil
 }
 
-func InsertMany(ctx context.Context, ms *mongolks.LinkedService, objs []ICollection, opts ...*options.InsertManyOptions) *core.ApplicationError {
+func InsertMany(ctx context.Context, ms *mongolks.LinkedService, objs []ICollection, opts ...options.Lister[options.InsertManyOptions]) *core.ApplicationError {
 	collName := ""
 	list := make([]interface{}, 0)
 	for _, v := range objs {
@@ -152,7 +152,7 @@ func InsertMany(ctx context.Context, ms *mongolks.LinkedService, objs []ICollect
 	return nil
 }
 
-func UpdateOne(ctx context.Context, ms *mongolks.LinkedService, filter IFilter, update bson.M, opts ...*options.UpdateOptions) *core.ApplicationError {
+func UpdateOne(ctx context.Context, ms *mongolks.LinkedService, filter IFilter, update bson.M, opts ...options.Lister[options.UpdateOneOptions]) *core.ApplicationError {
 
 	filterB, errB := buildFilter(filter)
 	if errB != nil {
@@ -190,7 +190,7 @@ func UpdateMany(ctx context.Context, ms *mongolks.LinkedService, filter IFilter,
 	return nil
 }
 
-func ReplaceOne(ctx context.Context, ms *mongolks.LinkedService, filter IFilter, obj ICollection, ro ...*options.ReplaceOptions) *core.ApplicationError {
+func ReplaceOne(ctx context.Context, ms *mongolks.LinkedService, filter IFilter, obj ICollection, ro ...options.Lister[options.ReplaceOptions]) *core.ApplicationError {
 
 	filterB, errB := buildFilter(filter)
 	if errB != nil {
@@ -209,7 +209,7 @@ func ReplaceOne(ctx context.Context, ms *mongolks.LinkedService, filter IFilter,
 	return nil
 }
 
-func ExecTransaction(ctx context.Context, ms *mongolks.LinkedService, transaction func(sessCtx mongo.SessionContext) error) *core.ApplicationError {
+func ExecTransaction(ctx context.Context, ms *mongolks.LinkedService, transaction func(ctx context.Context) error) *core.ApplicationError {
 	wc := writeconcern.Majority()
 	txnOptions := options.Transaction().SetWriteConcern(wc)
 	// Starts a session on the client
@@ -222,7 +222,7 @@ func ExecTransaction(ctx context.Context, ms *mongolks.LinkedService, transactio
 	defer session.EndSession(ctx)
 
 	// Esecuzione della transazione
-	err = mongo.WithSession(ctx, session, func(sessCtx mongo.SessionContext) error {
+	err = mongo.WithSession(ctx, session, func(sessCtx context.Context) error {
 		// Inizia la transazione
 		if errSt := session.StartTransaction(txnOptions); errSt != nil {
 			return errSt
