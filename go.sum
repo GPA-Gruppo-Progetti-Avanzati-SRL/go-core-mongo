@@ -2,8 +2,8 @@ github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app v0.0.10 h1:wOw4chmmHLRKQ
 github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app v0.0.10/go.mod h1:vh6SGkEoDGio54aRjMywR/lZCBbPKFvWKdDUNCn/ZE0=
 github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-common v0.1.85 h1:qtAy8lveC6ScNm5p5HAUna/+KslZyZ8yjxANbzaDYRw=
 github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-common v0.1.85/go.mod h1:Q456LEsf8ywWb9GU1sIesWakRSIWe6MisfM2Q5lDJlw=
-github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-mongo-common v1.0.0-RC2 h1:F/FqWBFFuhxowzeTigL/DCsRz+Yh46A3vb0jfdb0Leg=
-github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-mongo-common v1.0.0-RC2/go.mod h1:Xo+b9n6q0XSefcQzqU+we6z1YMHOFAbIMjPC4Iq/DFo=
+github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-mongo-common v1.0.0-RC3 h1:b5rLo0U69fc4iiY4d/oy51F/l7CXJBEhED4BoyEcl8k=
+github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-mongo-common v1.0.0-RC3/go.mod h1:C4sSBHwM4L9OiCci1C8K0jv/BjPKKK/8yh8mWqb65A8=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
 github.com/cenkalti/backoff/v5 v5.0.3 h1:ZN+IMa753KfX5hd8vVaMixjnqRZ3y8CuJKRKj1xcsSM=
@@ -124,8 +124,8 @@ github.com/xdg-go/stringprep v1.0.4/go.mod h1:mPGuuIYwz7CmR2bT9j4GbQqutWS1zV24gi
 github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78 h1:ilQV1hzziu+LLM3zUTJ0trRztfwgjqKnBWNtSRkbmwM=
 github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78/go.mod h1:aL8wCCfTfSfmXjznFBSZNN13rSJjlIOI1fUNAtF7rmI=
 github.com/yuin/goldmark v1.4.13/go.mod h1:6yULJ656Px+3vBD8DxQVa3kxgyrAnzto9xy5taEt/CY=
-go.mongodb.org/mongo-driver/v2 v2.3.0 h1:sh55yOXA2vUjW1QYw/2tRlHSQViwDyPnW61AwpZ4rtU=
-go.mongodb.org/mongo-driver/v2 v2.3.0/go.mod h1:jHeEDJHJq7tm6ZF45Issun9dbogjfnPySb1vXA7EeAI=
+go.mongodb.org/mongo-driver/v2 v2.3.1 h1:WrCgSzO7dh1/FrePud9dK5fKNZOE97q5EQimGkos7Wo=
+go.mongodb.org/mongo-driver/v2 v2.3.1/go.mod h1:jHeEDJHJq7tm6ZF45Issun9dbogjfnPySb1vXA7EeAI=
 go.opentelemetry.io/auto/sdk v1.2.1 h1:jXsnJ4Lmnqd11kwkBV2LgLoFMZKizbCi5fNZ/ipaZ64=
 go.opentelemetry.io/auto/sdk v1.2.1/go.mod h1:KRTj+aOaElaLi+wW1kO/DZRXwkF4C5xPbEe3ZiIhN7Y=
 go.opentelemetry.io/contrib/bridges/prometheus v0.63.0 h1:/Rij/t18Y7rUayNg7Id6rPrEnHgorxYabm2E6wUdPP4=
