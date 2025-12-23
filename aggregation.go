@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 
 	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-mongo-common/mongolks"
-
 	"github.com/rs/zerolog"
+
 	"github.com/rs/zerolog/log"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	"gopkg.in/yaml.v3"
@@ -219,7 +219,7 @@ func ExecuteAggregation[T any](ctx context.Context, ls *mongolks.LinkedService, 
 	}
 	if zerolog.GlobalLevel() < zerolog.DebugLevel {
 		value := PipelineToJson(mp)
-		log.Trace().Msg(value)
+		log.Trace().Str("pipeline", value).Msg("aggregation pipeline")
 	}
 
 	cur, errAgg := ls.GetCollection(aggregation.Collection, "").Aggregate(ctx, mp, opts...)
@@ -229,7 +229,12 @@ func ExecuteAggregation[T any](ctx context.Context, ls *mongolks.LinkedService, 
 		}
 		return nil, core.TechnicalErrorWithCodeAndMessage("MONGO-EXECAGGR", errAgg.Error())
 	}
-	defer cur.Close(ctx)
+	defer func() {
+		ccerr := cur.Close(ctx)
+		if ccerr != nil {
+			log.Error().Err(ccerr).Msg("close cursor error")
+		}
+	}()
 	results := make([]*T, 0)
 	if errCur := cur.All(ctx, &results); errCur != nil {
 		return nil, core.TechnicalErrorWithCodeAndMessage("MONGO-EXECAGGR-CUR", errCur.Error())
@@ -237,13 +242,39 @@ func ExecuteAggregation[T any](ctx context.Context, ls *mongolks.LinkedService, 
 
 	return results, nil
 }
-func PipelineToJson(pipeline interface{}) string {
-
-	mappa := bson.M{"pipeline": pipeline}
-
-	value, err := bson.MarshalExtJSON(mappa, false, false)
-	if err != nil {
-		return ""
+func PipelineToJson(pipeline mongo.Pipeline) string {
+	log.Warn().Msg("PipelineToJson")
+	// Ensure we never return an empty string so logs are not blank
+	if pipeline == nil || len(pipeline) == 0 {
+		return "[]"
 	}
-	return "\n" + string(value)
+	// First attempt: wrap as bson.A to avoid top-level array writer issues
+	// (mongo.Pipeline is []bson.D; we must copy into a []any-backed bson.A)
+	arr := make(bson.A, 0, len(pipeline))
+	for _, st := range pipeline {
+		arr = append(arr, st)
+	}
+	if data, err := bson.MarshalExtJSON(arr, false, false); err == nil {
+		return string(data)
+	}
+	// Fallback: marshal each stage individually and assemble a JSON array
+	parts := make([]string, 0, len(pipeline))
+	for _, stage := range pipeline {
+		b, err := bson.MarshalExtJSON(stage, false, false)
+		if err != nil {
+			return "<pipeline-marshal-error: " + err.Error() + ">"
+		}
+		parts = append(parts, string(b))
+	}
+	// Join with commas into a JSON array
+	// Note: avoid importing strings to keep deps minimal; simple manual join
+	out := "["
+	for i, p := range parts {
+		if i > 0 {
+			out += ","
+		}
+		out += p
+	}
+	out += "]"
+	return out
 }
