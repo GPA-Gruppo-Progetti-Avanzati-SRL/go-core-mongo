@@ -4,7 +4,7 @@ go 1.24.0
 
 require (
 	github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app v0.0.12
-	github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-mongo-common v1.0.2-RCN.0.20251230165853-0f5867e86854
+	github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-mongo-common v1.0.2-RCN.0.20260113100222-187d907208f9
 	github.com/rs/zerolog v1.34.0
 	go.mongodb.org/mongo-driver/v2 v2.4.1
 	go.uber.org/fx v1.24.0
