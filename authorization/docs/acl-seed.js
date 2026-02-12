@@ -19,52 +19,58 @@
     coll.replaceOne({ _id: doc._id }, doc, { upsert: true });
   }
 
+  const apps  = [
+      {_id: "APP_ROOT",  _et: 'APP', description: "Applicazione principale", path :"/"},
+    {_id: "APP_COND", _et: 'APP', description: "Applicazione condizioni", path :"/condizioni"},
+    {_id: "APP_CC", _et: 'APP', description: "Applicazione conti correnti", path :"/conti"},
+    {_id: "APP_SYSTEM",  _et: 'APP', description: "Applicazione system", path :"/system"},
+]
   // --- Funzioni (endpoint/menu/capability) ---
-  const functions = [
+  const capabilities = [
 
-    // endpoint comuni a tutti i ruoli (nested)
-    { _id: 'FUNC_WHOAMI', type: 'function', description: 'Identità utente corrente', endpoint: { operationid: 'whoami' } },
-    { _id: 'FUNC_MENU', type: 'function', description: 'Costruzione menu', endpoint: { operationid: 'menu' } },
-
-    // endpoint (nested)
-    { _id: 'FUNC_USER_LIST', type: 'function', description: 'Elenco utenti', endpoint: { operationid: 'getUsers' } },
-    { _id: 'FUNC_USER_CREATE', type: 'function', description: 'Crea utente', endpoint: { operationid: 'createUser' } },
-    { _id: 'FUNC_REPORT_LIST', type: 'function', description: 'Elenco report', endpoint: { operationid: 'getReports' } },
+    // api
+    { _id: 'API_WHOAMI', _et: 'CAPABILITY', category: 'api', description: 'Identità utente corrente', api: { operationid: 'whoami' } },
+    { _id: 'API_MENU', _et: 'CAPABILITY', category: 'api', description: 'Costruzione menu', api: { operationid: 'menu' } },
+    { _id: 'API_USER_LIST',  _et: 'CAPABILITY' , category: "api", description: 'Elenco utenti', api: { operationid: 'getUsers' } },
+    { _id: 'API_CREATE',  _et: 'CAPABILITY' , category: "api", description: 'Crea utente', api: { operationid: 'createUser' } },
+    { _id: 'API_LIST',  _et: 'CAPABILITY' , category: "api", description: 'Elenco report', api: { operationid: 'getReports' } },
 
 
-    // menu (nested, con icone e ordinamento)
-    { _id: 'MENU_HOME', type: 'function', description: 'Home', menu: { icon: 'home', isleaf: true, endpoint: '/', order: 0 } },
-    { _id: 'MENU_USERS', type: 'function', description: 'Menu Gestione Utenti', menu: { icon: 'users', order: 10 } },
-    { _id: 'MENU_USERS_LIST', type: 'function', description: 'Elenco utenti (menu)', menu: { isleaf: true, endpoint: '/crud', functionparentid: 'MENU_USERS', icon: 'list', order: 11 } },
-    { _id: 'MENU_REPORTS', type: 'function', description: 'Menu Reportistica', menu: { isleaf: true, icon: 'chart', order: 20 , endpoint: '/reports', appid: 'APP_A' } },
+    // ui
+    { _id: 'UI_HOME_ROOT', _et: 'CAPABILITY', description: 'Home', category: "ui", appId :"APP_ROOT", ui: { icon: 'home', endpoint: '/', order: 0 } },
+    { _id: 'UI_HOME_CC', _et: 'CAPABILITY', description: 'Home', category: "ui", appId: "APP_CC",  ui: { icon: 'home', endpoint: '/', order: 0 } },
+    { _id: 'UI_HOME_COND', _et: 'CAPABILITY', description: 'Home', category: "ui", appId: "APP_COND",  ui: { icon: 'home', endpoint: '/', order: 0 } },
+    { _id: 'UI_HOME_SYSTEM', _et: 'CAPABILITY', description: 'Home', category: "ui", appId: "APP_SYSTEM",  ui: { icon: 'home', endpoint: '/', order: 0 } },
+    { _id: 'UI_USERS_NEW',  _et: 'CAPABILITY', description: 'Menu Gestione Utenti', ui: { endpoint: '/users/new', icon: 'users', order: 10 } },
+    { _id: 'UI_USERS_LIST', _et: 'CAPABILITY', category: 'ui', description: 'Elenco utenti (menu)', ui: { endpoint: '/users', icon: 'list', order: 11 } },
+    { _id: 'UI_REPORTS', _et: 'CAPABILITY', category: 'ui', description: 'Menu Reportistica', ui: { icon: 'chart', order: 20 , endpoint: '/reports' } },
 
-    // capability (nested)
-    { _id: 'CAP_EXPORT', type: 'function', description: 'Esporta dati', capability: { captype: 'client', appid: 'APP_A' } },
-    { _id: 'CAP_SERVER', type: 'function', description: 'Cap server', capability: { captype: 'server' } },
+    // actions
+    { _id: 'ACT_UI_EXPORT', _et: 'CAPABILITY',  category : "action_ui", description: 'Esporta dati' ,appId :"APP_HOME" },
+    { _id: 'ACT_API_SERVER', _et: 'CAPABILITY', category : "action_api" , description: 'Cap server' },
 
   ];
 
   // --- Function Groups ---
-  const functiongroups = [
+  const capabilitygroups = [
     // functiongroup comune per operazioni base
     {
-      _id: 'FG_COMMON',
-      type: 'functiongroup',
+      _id: 'CG_COMMON',
+      _et: 'CAPABILITYGROUP',
       description: 'Funzioni comuni',
-      functions: ['FUNC_WHOAMI', 'FUNC_MENU','MENU_HOME'],
+      capabilities: ['API_WHOAMI', 'API_MENU','API_APPS' ,'UI_HOME_ROOT'],
     },
     {
-      _id: 'FG_USERS',
-      type: 'functiongroup',
+      _id: 'CG_USERS',
+      _et: 'CAPABILITYGROUP',
       description: 'Gestione utenti',
-      // riferimenti a functions per ID
-      functions: ['FUNC_USER_LIST', 'FUNC_USER_CREATE', 'MENU_USERS', 'MENU_USERS_LIST', 'CAP_EXPORT'],
+      capabilities: ['API_USER_LIST', 'API_CREATE', 'UI_USERS_NEW', 'UI_USERS_LIST', 'ACT_UI_EXPORT'],
     },
     {
-      _id: 'FG_REPORTS',
-      type: 'functiongroup',
+      _id: 'CG_REPORTS',
+      _et: 'CAPABILITYGROUP',
       description: 'Reportistica',
-      functions: ['FUNC_REPORT_LIST', 'MENU_REPORTS', 'CAP_SERVER'],
+      capabilities: ['API_LIST', 'UI_REPORTS', 'ACT_API_SERVER'],
     },
   ];
 
@@ -72,33 +78,37 @@
   const roles = [
     {
       _id: 'ROLE_ADMIN',
-      type: 'role',
+      _et: 'ROLE',
       description: 'Amministratore',
-      // riferimenti a functiongroups per ID
-      functiongroups: ['FG_COMMON', 'FG_USERS', 'FG_REPORTS'],
+      capability_groups: ['CG_COMMON', 'CG_USERS', 'CG_REPORTS'],
+      capabilities: ['ACT_UI_EXPORT', 'ACT_API_SERVER'],
     },
     {
       _id: 'ROLE_USER',
-      type: 'role',
+      _et: 'ROLE',
       description: 'Utente base',
-      functiongroups: ['FG_COMMON', 'FG_USERS'],
+      capability_groups: ['CG_COMMON', 'CG_USERS'],
     },
     {
       _id: 'ROLE_REPORT',
-      type: 'role',
+      _et: 'ROLE',
       description: 'Utente report',
-      functiongroups: ['FG_COMMON', 'FG_REPORTS'],
+      capability_groups: ['CG_COMMON', 'CG_REPORTS'],
     },
   ];
 
-  print('\n[acl-seed] Upsert functions ...');
-  functions.forEach(upsert);
+  print('\n[acl-seed] Upsert capabilities ...');
+  capabilities.forEach(upsert);
 
-  print('[acl-seed] Upsert functiongroups ...');
-  functiongroups.forEach(upsert);
+  print('[acl-seed] Upsert capabilitygroups ...');
+  capabilitygroups.forEach(upsert);
 
   print('[acl-seed] Upsert roles ...');
   roles.forEach(upsert);
+
+
+  print('[acl-seed] Upsert apps ...');
+  apps.forEach(upsert);
 
   print('[acl-seed] Done.');
 })();

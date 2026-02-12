@@ -1,9 +1,9 @@
-github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app v0.0.13 h1:GwW5Gb5ppMbw4Fx1SkapF/Ks5AJx+NPLuJKxUc5NntY=
-github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app v0.0.13/go.mod h1:KLX1oWC5xnuzKbVjTzflcqDiwaEsEG13lNTI8mzVdEo=
-github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-common v0.1.89 h1:7knp6eMP6ZV7AMEFZIuNp5zAokVNs7BZHSkjsRaBJbY=
-github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-common v0.1.89/go.mod h1:Q456LEsf8ywWb9GU1sIesWakRSIWe6MisfM2Q5lDJlw=
-github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-mongo-common v1.0.2-RCN.0.20260113100222-187d907208f9 h1:NIkqZnowbvVddZUhP0SRXlweIa3E+6Om+h+sXIuuNno=
-github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-mongo-common v1.0.2-RCN.0.20260113100222-187d907208f9/go.mod h1:HOTBcdJcXzbMTOCqIvW2Phsis8fUIuAWleY7Wh7nTj8=
+github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app v0.0.14 h1:aaE4tRV7hVq76BtY4IWutEfTIRRqPg9gmBWYo96Tl04=
+github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app v0.0.14/go.mod h1:xgQRZcDELPNuQRgBAqFdgl7/2h+1soecOUqYL+Hxkkg=
+github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-common v0.1.92 h1:7s6wsDDtQREXOe+P5YMPYQ9ydA9DWse1CJ/+33nWG1M=
+github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-common v0.1.92/go.mod h1:Q456LEsf8ywWb9GU1sIesWakRSIWe6MisfM2Q5lDJlw=
+github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-mongo-common v1.0.3 h1:T0jNUm7GoE8+C3UZ1XFzkhLp0STF+63OhdwvcotOfUw=
+github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-mongo-common v1.0.3/go.mod h1:qk2X+JT8Wob6IWPlLQ/hQ/cjtq/pQ4rW5eIsWztFUnE=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
 github.com/cenkalti/backoff/v5 v5.0.3 h1:ZN+IMa753KfX5hd8vVaMixjnqRZ3y8CuJKRKj1xcsSM=

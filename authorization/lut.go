@@ -22,26 +22,20 @@ type AuthorizationLut struct {
 	updating   atomic.Bool
 	lastUpdate atomic.Value
 	minRefresh time.Duration
+	ls         *mongolks.LinkedService
 
-	ls *mongolks.LinkedService
-	// Mappe per viste logiche: endpoint/capability/menu
-	roleEndpoints          sync.Map // roleId -> set(operationId)
-	roleClientCapabilities sync.Map // roleId -> set(capabilityId) (captype==client)
-	roleServerCapabilities sync.Map // roleId -> set(capabilityId) (captype==server)
-	roleMenus              sync.Map // roleId -> set(menuId)
-
-	// Catalogo completo dei menu per costruire l'albero
-	menuCatalog map[string]*Function // key: menuId
-	// Catalogo capability per filtrare per appId (solo client)
-	capCatalog map[string]*Function // key: capabilityId
+	roleApis   sync.Map // roleId -> map[string]ApiNode
+	roleUis    sync.Map // roleId -> map[string]UINode
+	roleActUi  sync.Map // roleId -> map[string]ActUi
+	roleActApi sync.Map // roleId -> map[string]ActApi
 }
 
 type roleFunctionsAggRes struct {
-	RoleID     string   `bson:"_id" json:"_id"`
-	Endpoints  []string `bson:"endpoints" json:"endpoints"`
-	ClientCaps []string `bson:"clientcaps" json:"clientcaps"`
-	ServerCaps []string `bson:"servercaps" json:"servercaps"`
-	Menus      []string `bson:"menus" json:"menus"`
+	RoleID    string    `bson:"_id" json:"_id"`
+	Apis      []ApiNode `bson:"apis" json:"apis"`
+	UIs       []UINode  `bson:"uis" json:"uis"`
+	ActionUI  []ActUi   `bson:"actsUI" json:"actsUI"`
+	ActionApi []ActApi  `bson:"actsApi" json:"actsApi"`
 }
 
 func NewAuthorizationLut(lc fx.Lifecycle, ls *mongolks.LinkedService) *AuthorizationLut {
@@ -49,10 +43,8 @@ func NewAuthorizationLut(lc fx.Lifecycle, ls *mongolks.LinkedService) *Authoriza
 	refresh := 10 * time.Minute
 
 	l := &AuthorizationLut{
-		ls:          ls,
-		minRefresh:  refresh,
-		menuCatalog: make(map[string]*Function),
-		capCatalog:  make(map[string]*Function),
+		ls:         ls,
+		minRefresh: refresh,
 	}
 	lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
@@ -102,68 +94,98 @@ func (l *AuthorizationLut) refresh() *core.ApplicationError {
 
 	pipeline := mongo.Pipeline{
 		// 1) Ruoli
-		bson.D{{Key: "$match", Value: bson.M{"type": "role"}}},
-		bson.D{{Key: "$project", Value: bson.M{"_id": 1, "functiongroups": 1}}},
-		bson.D{{Key: "$unwind", Value: bson.M{"path": "$functiongroups", "preserveNullAndEmptyArrays": false}}},
-		// 2) Lookup functiongroup per ottenere l'array di functions (ids)
+		bson.D{{Key: "$match", Value: bson.M{"_et": "ROLE"}}},
+		bson.D{{Key: "$project", Value: bson.M{"_id": 1, "capability_groups": 1, "capabilities": 1}}},
+
+		// 2a) Unwind capability_groups e lookup
+		bson.D{{Key: "$unwind", Value: bson.M{"path": "$capability_groups", "preserveNullAndEmptyArrays": true}}},
 		bson.D{{Key: "$lookup", Value: bson.M{
 			"from": collName,
-			"let":  bson.M{"fgId": "$functiongroups"},
+			"let":  bson.M{"cgId": "$capability_groups"},
 			"pipeline": mongo.Pipeline{
-				bson.D{{Key: "$match", Value: bson.M{"$expr": bson.M{"$eq": bson.A{"$_id", "$$fgId"}}}}},
-				bson.D{{Key: "$match", Value: bson.M{"type": "functiongroup"}}},
-				bson.D{{Key: "$project", Value: bson.M{"_id": 1, "functions": 1}}},
+				bson.D{{Key: "$match", Value: bson.M{"$expr": bson.M{"$eq": bson.A{"$_id", "$$cgId"}}}}},
+				bson.D{{Key: "$match", Value: bson.M{"_et": "CAPABILITYGROUP"}}},
+				bson.D{{Key: "$project", Value: bson.M{"_id": 0, "capabilities": 1}}},
 			},
-			"as": "functiongroup",
+			"as": "cg_caps",
 		}}},
-		bson.D{{Key: "$unwind", Value: bson.M{"path": "$functiongroup"}}},
-		bson.D{{Key: "$unwind", Value: bson.M{"path": "$functiongroup.functions"}}},
-		// 3) Lookup function per leggere i campi nested utili (senza usare kind)
+		bson.D{{Key: "$unwind", Value: bson.M{"path": "$cg_caps", "preserveNullAndEmptyArrays": true}}},
+
+		// Combinazione capabilities dirette + quelle del gruppo
+		bson.D{{Key: "$project", Value: bson.M{
+			"_id": 1,
+			"all_caps": bson.M{"$setUnion": bson.A{
+				bson.M{"$ifNull": bson.A{"$capabilities", bson.A{}}},
+				bson.M{"$ifNull": bson.A{"$cg_caps.capabilities", bson.A{}}},
+			}},
+		}}},
+
+		// 3) Group per rimettere insieme i pezzi dei vari CG esplosi con unwind
+		bson.D{{Key: "$group", Value: bson.M{
+			"_id":      "$_id",
+			"all_caps": bson.M{"$addToSet": "$all_caps"},
+		}}},
+		bson.D{{Key: "$project", Value: bson.M{
+			"_id": 1,
+			"all_caps": bson.M{"$reduce": bson.M{
+				"input":        "$all_caps",
+				"initialValue": bson.A{},
+				"in":           bson.M{"$setUnion": bson.A{"$$value", "$$this"}},
+			}},
+		}}},
+
+		bson.D{{Key: "$unwind", Value: bson.M{"path": "$all_caps", "preserveNullAndEmptyArrays": false}}},
+
+		// 4) Lookup capability per leggere i campi nested utili
 		bson.D{{Key: "$lookup", Value: bson.M{
 			"from": collName,
-			"let":  bson.M{"funcId": "$functiongroup.functions"},
+			"let":  bson.M{"capId": "$all_caps"},
 			"pipeline": mongo.Pipeline{
-				bson.D{{Key: "$match", Value: bson.M{"$expr": bson.M{"$eq": bson.A{"$_id", "$$funcId"}}}}},
-				bson.D{{Key: "$match", Value: bson.M{"type": "function"}}},
-				bson.D{{Key: "$project", Value: bson.M{"_id": 1, "endpoint.operationid": 1, "capability.captype": 1, "menu": 1}}},
+				bson.D{{Key: "$match", Value: bson.M{"$expr": bson.M{"$eq": bson.A{"$_id", "$$capId"}}}}},
+				bson.D{{Key: "$match", Value: bson.M{"_et": "CAPABILITY"}}},
+				bson.D{{Key: "$project", Value: bson.M{
+					"_id":         1,
+					"category":    1,
+					"appId":       1,
+					"operationid": "$api.operationid",
+					"icon":        "$ui.icon",
+					"order":       "$ui.order",
+					"endpoint":    "$ui.endpoint",
+					"description": 1,
+				}}},
 			},
-			"as": "function",
+			"as": "capability",
 		}}},
-		bson.D{{Key: "$unwind", Value: bson.M{"path": "$function"}}},
-		// 4) Group per ruolo con insiemi distinti per categorie
+		bson.D{{Key: "$unwind", Value: bson.M{"path": "$capability"}}},
+
+		// 5) Group per ruolo con insiemi distinti per categorie
 		bson.D{{Key: "$group", Value: bson.M{
 			"_id": "$_id",
-			"endpoints": bson.M{"$addToSet": bson.M{
+			"apis": bson.M{"$addToSet": bson.M{
 				"$cond": bson.A{
-					bson.M{"$ne": bson.A{bson.M{"$type": "$function.endpoint"}, "missing"}},
-					"$function.endpoint.operationid",
+					bson.M{"$eq": bson.A{"$capability.category", "api"}},
+					"$capability",
 					"$$REMOVE",
 				},
 			}},
-			"clientcaps": bson.M{"$addToSet": bson.M{
+			"uis": bson.M{"$addToSet": bson.M{
 				"$cond": bson.A{
-					bson.M{"$and": bson.A{
-						bson.M{"$ne": bson.A{bson.M{"$type": "$function.capability"}, "missing"}},
-						bson.M{"$eq": bson.A{"$function.capability.captype", "client"}},
-					}},
-					"$function._id",
+					bson.M{"$eq": bson.A{"$capability.category", "ui"}},
+					"$capability",
 					"$$REMOVE",
 				},
 			}},
-			"servercaps": bson.M{"$addToSet": bson.M{
+			"actsUI": bson.M{"$addToSet": bson.M{
 				"$cond": bson.A{
-					bson.M{"$and": bson.A{
-						bson.M{"$ne": bson.A{bson.M{"$type": "$function.capability"}, "missing"}},
-						bson.M{"$eq": bson.A{"$function.capability.captype", "server"}},
-					}},
-					"$function._id",
+					bson.M{"$eq": bson.A{"$capability.category", "action_ui"}},
+					"$capability",
 					"$$REMOVE",
 				},
 			}},
-			"menus": bson.M{"$addToSet": bson.M{
+			"actsApi": bson.M{"$addToSet": bson.M{
 				"$cond": bson.A{
-					bson.M{"$ne": bson.A{bson.M{"$type": "$function.menu"}, "missing"}},
-					"$function._id",
+					bson.M{"$eq": bson.A{"$capability.category", "action_api"}},
+					"$capability",
 					"$$REMOVE",
 				},
 			}},
@@ -186,63 +208,43 @@ func (l *AuthorizationLut) refresh() *core.ApplicationError {
 
 	// Popola mappe per viste
 	for _, r := range res {
-		// Endpoints
-		if r.Endpoints != nil {
-			set := make(map[string]struct{}, len(r.Endpoints))
-			for _, v := range r.Endpoints {
-				if v == "" {
-					continue
-				}
-				set[v] = struct{}{}
+		// Apis
+		apiMap := make(map[string]ApiNode)
+		for _, v := range r.Apis {
+			if v.ID != "" {
+				apiMap[v.ID] = v
 			}
-			l.roleEndpoints.Store(r.RoleID, set)
 		}
+		l.roleApis.Store(r.RoleID, apiMap)
 
-		// Client Capabilities
-		if r.ClientCaps != nil {
-			set := make(map[string]struct{}, len(r.ClientCaps))
-			for _, v := range r.ClientCaps {
-				if v == "" {
-					continue
-				}
-				set[v] = struct{}{}
+		// UIs
+		uiMap := make(map[string]UINode)
+		for _, v := range r.UIs {
+			if v.ID != "" {
+				uiMap[v.ID] = v
 			}
-			l.roleClientCapabilities.Store(r.RoleID, set)
 		}
-		// Server Capabilities
-		if r.ServerCaps != nil {
-			set := make(map[string]struct{}, len(r.ServerCaps))
-			for _, v := range r.ServerCaps {
-				if v == "" {
-					continue
-				}
-				set[v] = struct{}{}
+		l.roleUis.Store(r.RoleID, uiMap)
+
+		// ActsUI
+		actUiMap := make(map[string]ActUi)
+		for _, v := range r.ActionUI {
+			if v.ID != "" {
+				actUiMap[v.ID] = v
 			}
-			l.roleServerCapabilities.Store(r.RoleID, set)
 		}
-		// Menus
-		if r.Menus != nil {
-			set := make(map[string]struct{}, len(r.Menus))
-			for _, v := range r.Menus {
-				if v == "" {
-					continue
-				}
-				set[v] = struct{}{}
+		l.roleActUi.Store(r.RoleID, actUiMap)
+
+		// ActsApi
+		actApiMap := make(map[string]ActApi)
+		for _, v := range r.ActionApi {
+			if v.ID != "" {
+				actApiMap[v.ID] = v
 			}
-			l.roleMenus.Store(r.RoleID, set)
 		}
+		l.roleActApi.Store(r.RoleID, actApiMap)
 	}
 
-	// Carica intero catalogo menu per costruire l'albero
-	if err := l.loadMenuCatalog(ctx, collName); err != nil {
-		log.Error().Err(err).Msg("Authorization LUT load menu catalog error")
-		return err
-	}
-	// Carica catalogo capability per filtrare per app
-	if err := l.loadCapabilityCatalog(ctx, collName); err != nil {
-		log.Error().Err(err).Msg("Authorization LUT load capability catalog error")
-		return err
-	}
 	l.lastUpdate.Store(time.Now())
 	log.Info().Msgf("Authorization LUT refresh done: roles=%d", len(res))
 	return nil
@@ -254,43 +256,36 @@ func (l *AuthorizationLut) Match(roles []string, operationId string) bool {
 		go l.refresh()
 	}
 	for _, rid := range roles {
-		if v, ok := l.roleEndpoints.Load(rid); ok {
-			set := v.(map[string]struct{})
-			if _, okF := set[operationId]; okF {
-				return true
+		if v, ok := l.roleApis.Load(rid); ok {
+			for _, node := range v.(map[string]ApiNode) {
+				if node.OperationID == operationId {
+					return true
+				}
 			}
 		}
 	}
 	return false
 }
 
-// GetClientCapabilities restituisce la lista di capabilities di tipo "client" abilitate per i ruoli.
-func (l *AuthorizationLut) GetCapabilities(roles []string, appId ...string) []string {
+// GetCapabilities restituisce la lista di capabilities abilitate per i ruoli.
+// Applica il filtro appId solo alle categorie 'ui' e 'action_ui'.
+func (l *AuthorizationLut) GetCapabilities(roles []string, appId string) []string {
 	if l.expired(false) {
 		go l.refresh()
 	}
-	var filterApp string
-	if len(appId) > 0 {
-		filterApp = appId[0]
-	}
+
 	outSet := make(map[string]struct{})
 	for _, rid := range roles {
-		if v, ok := l.roleClientCapabilities.Load(rid); ok {
-			for k := range v.(map[string]struct{}) {
-				// Se non filtriamo per app, includiamo tutto
-				if filterApp == "" {
-					outSet[k] = struct{}{}
-					continue
-				}
-				// Se filtriamo per app: includi solo le capability con appid esattamente uguale
-				if f, okF := l.capCatalog[k]; okF {
-					if f.Capability != nil && f.Capability.AppID == filterApp {
-						outSet[k] = struct{}{}
-					}
+		// 3. Action UI (con filtro appId)
+		if v, ok := l.roleActUi.Load(rid); ok {
+			for _, node := range v.(map[string]ActUi) {
+				if node.AppID == "" || node.AppID == appId {
+					outSet[node.ID] = struct{}{}
 				}
 			}
 		}
 	}
+
 	out := make([]string, 0, len(outSet))
 	for k := range outSet {
 		out = append(out, k)
@@ -298,15 +293,15 @@ func (l *AuthorizationLut) GetCapabilities(roles []string, appId ...string) []st
 	return out
 }
 
-// HasServerCapability verifica se almeno uno dei ruoli possiede la capability server indicata.
+// HasCapability verifica se almeno uno dei ruoli possiede la capability indicata.
 func (l *AuthorizationLut) HasCapability(roles []string, capabilityId string) bool {
 	if l.expired(false) {
 		go l.refresh()
 	}
+
 	for _, rid := range roles {
-		if v, ok := l.roleServerCapabilities.Load(rid); ok {
-			set := v.(map[string]struct{})
-			if _, okF := set[capabilityId]; okF {
+		if v, ok := l.roleActApi.Load(rid); ok {
+			if _, found := v.(map[string]ActApi)[capabilityId]; found {
 				return true
 			}
 		}
@@ -314,135 +309,36 @@ func (l *AuthorizationLut) HasCapability(roles []string, capabilityId string) bo
 	return false
 }
 
-// GetMenu costruisce l'albero dei menu autorizzati per i ruoli passati.
-func (l *AuthorizationLut) GetMenu(roles []string, appId ...string) []*authcore.MenuNode {
+// GetMenu restituisce un elenco PIATTO dei menu autorizzati per i ruoli passati.
+// Se viene passato un appId, i menu vengono filtrati strettamente per appId.
+func (l *AuthorizationLut) GetMenu(roles []string, appId string) []*authcore.MenuNode {
 	if l.expired(false) {
 		go l.refresh()
 	}
-	var filterApp string
-	if len(appId) > 0 {
-		filterApp = appId[0]
-	}
-	// Unione dei menu autorizzati per i ruoli
-	allowed := make(map[string]struct{})
+
+	// Mappa per evitare duplicati di menu tra ruoli diversi
+	menusMap := make(map[string]*UINode)
 	for _, rid := range roles {
-		if v, ok := l.roleMenus.Load(rid); ok {
-			for k := range v.(map[string]struct{}) {
-				allowed[k] = struct{}{}
+		if v, ok := l.roleUis.Load(rid); ok {
+			for id, node := range v.(map[string]UINode) {
+				// Filtro stretto: includi solo voci con appid esattamente uguale a filterApp
+				if node.AppID == appId {
+					menusMap[id] = &node
+				}
 			}
 		}
 	}
-	// Costruzione nodi filtrati
-	nodes := make(map[string]*authcore.MenuNode)
-	for id, f := range l.menuCatalog {
-		if _, ok := allowed[id]; !ok {
-			continue
-		}
-		// App filter: se filterApp è impostato, includi solo menu con appid == filterApp o senza appid
-		if filterApp != "" {
-			if f.Menu == nil {
-				continue
-			}
-			if !(f.Menu.AppID == "" || f.Menu.AppID == filterApp) {
-				continue
-			}
-		}
-		nodes[id] = &authcore.MenuNode{
+
+	out := make([]*authcore.MenuNode, 0, len(menusMap))
+	for _, f := range menusMap {
+		n := &authcore.MenuNode{
 			ID:          f.ID,
 			Description: f.Description,
-			Icon: func() string {
-				if f.Menu != nil {
-					return f.Menu.Icon
-				}
-				return ""
-			}(),
-			Order: func() int {
-				if f.Menu != nil {
-					return f.Menu.Order
-				}
-				return 0
-			}(),
-			IsLeaf: func() bool {
-				if f.Menu != nil {
-					return f.Menu.IsLeaf
-				}
-				return false
-			}(),
-			Endpoint: func() string {
-				if f.Menu != nil {
-					return f.Menu.Endpoint
-				}
-				return ""
-			}(),
-			FunctionParentID: func() string {
-				if f.Menu != nil {
-					return f.Menu.FunctionParentID
-				}
-				return ""
-			}(),
-			Children: nil,
+			Icon:        f.Icon,
+			Order:       f.Order,
+			Endpoint:    f.Endpoint,
 		}
+		out = append(out, n)
 	}
-	// Link parent-children solo se parent autorizzato
-	roots := make([]*authcore.MenuNode, 0)
-	for _, n := range nodes {
-		pid := n.FunctionParentID
-		if pid == "" {
-			roots = append(roots, n)
-			continue
-		}
-		if p, ok := nodes[pid]; ok {
-			p.Children = append(p.Children, n)
-		} else {
-			// parent non autorizzato o non presente → considera root
-			roots = append(roots, n)
-		}
-	}
-	return roots
-}
-
-// loadMenuCatalog carica tutte le function di tipo menu in memoria.
-func (l *AuthorizationLut) loadMenuCatalog(ctx context.Context, collName string) *core.ApplicationError {
-	coll := l.ls.GetCollection(collName, "")
-	cur, err := coll.Aggregate(ctx, mongo.Pipeline{
-		bson.D{{Key: "$match", Value: bson.M{"type": "function", "menu": bson.M{"$exists": true}}}},
-		bson.D{{Key: "$project", Value: bson.M{"_id": 1, "description": 1, "menu.isleaf": 1, "menu.endpoint": 1, "menu.functionparentid": 1, "menu.icon": 1, "menu.order": 1, "menu.appid": 1}}},
-	})
-	if err != nil {
-		return core.TechnicalErrorWithError(err)
-	}
-	defer cur.Close(ctx)
-	cats := make(map[string]*Function)
-	for cur.Next(ctx) {
-		var f Function
-		if err := cur.Decode(&f); err != nil {
-			return core.TechnicalErrorWithError(err)
-		}
-		cats[f.ID] = &f
-	}
-	l.menuCatalog = cats
-	return nil
-}
-
-// loadCapabilityCatalog carica le function di tipo capability (per filtri appid sulle client caps)
-func (l *AuthorizationLut) loadCapabilityCatalog(ctx context.Context, collName string) *core.ApplicationError {
-	coll := l.ls.GetCollection(collName, "")
-	cur, err := coll.Aggregate(ctx, mongo.Pipeline{
-		bson.D{{Key: "$match", Value: bson.M{"type": "function", "capability": bson.M{"$exists": true}}}},
-		bson.D{{Key: "$project", Value: bson.M{"_id": 1, "capability.captype": 1, "capability.appid": 1}}},
-	})
-	if err != nil {
-		return core.TechnicalErrorWithError(err)
-	}
-	defer cur.Close(ctx)
-	cats := make(map[string]*Function)
-	for cur.Next(ctx) {
-		var f Function
-		if err := cur.Decode(&f); err != nil {
-			return core.TechnicalErrorWithError(err)
-		}
-		cats[f.ID] = &f
-	}
-	l.capCatalog = cats
-	return nil
+	return out
 }

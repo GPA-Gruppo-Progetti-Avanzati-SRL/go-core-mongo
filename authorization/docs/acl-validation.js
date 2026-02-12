@@ -7,34 +7,30 @@
   const coll = db.getCollection('acl');
 
   // Rule:
-  // - if type != 'function' -> pass
-  // - else exactly one of the three fields must exist
+  // - if _et != 'CAPABILITY' -> pass
+  // - else exactly one of the fields 'api' or 'ui' (or none for generic capabilities)
   const validator = {
     $or: [
-      // Non-function docs: always pass
-      { type: { $ne: 'function' } },
+      // Non-capability docs: always pass
+      { _et: { $ne: 'CAPABILITY' } },
 
-      // Case: endpoint only, and operationid required (non-empty string)
+      // Case: api capability
       { $and: [
-        { endpoint: { $exists: true } },
-        { menu: { $exists: false } },
-        { capability: { $exists: false } },
-        { 'endpoint.operationid': { $type: 'string', $ne: '' } },
+        { api: { $exists: true } },
+        { ui: { $exists: false } },
+        { 'api.operationid': { $type: 'string', $ne: '' } },
       ]},
 
-      // Case: menu only (no extra required fields enforced here)
+      // Case: ui capability
       { $and: [
-        { menu: { $exists: true } },
-        { endpoint: { $exists: false } },
-        { capability: { $exists: false } },
+        { ui: { $exists: true } },
+        { api: { $exists: false } },
       ]},
 
-      // Case: capability only, captype required and valid
+      // Case: generic capability (no api/ui, just the document)
       { $and: [
-        { capability: { $exists: true } },
-        { endpoint: { $exists: false } },
-        { menu: { $exists: false } },
-        { 'capability.captype': { $in: ['client', 'server'] } },
+        { ui: { $exists: false } },
+        { api: { $exists: false } },
       ]},
     ],
   };

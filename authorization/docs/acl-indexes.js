@@ -31,12 +31,3 @@ db.acl.createIndex(
   { partialFilterExpression: { type: 'function', 'menu.appid': { $exists: true } } }
 )
 
-// Indici aggiuntivi per la gestione del menu ad albero (nested)
-db.acl.createIndex(
-  { type: 1, 'menu.isleaf': 1 },
-  { partialFilterExpression: { type: 'function', 'menu.isleaf': { $exists: true } } }
-)
-db.acl.createIndex(
-  { type: 1, 'menu.functionparentid': 1 },
-  { partialFilterExpression: { type: 'function', 'menu.functionparentid': { $exists: true } } }
-)
