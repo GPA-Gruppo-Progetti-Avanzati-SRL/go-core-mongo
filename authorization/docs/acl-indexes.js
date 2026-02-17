@@ -1,33 +1,32 @@
 // Indici suggeriti per la collection "acl"
 // Eseguire questi comandi nella shell MongoDB sul database scelto
 
-// Indice per filtrare rapidamente per tipo
-db.acl.createIndex({ type: 1 })
+// Indice per filtrare rapidamente per tipo (discriminatore)
+db.acl.createIndex({ _et: 1 })
 
-// Indice per ricerche su membership dei function group all'interno dei ruoli
-db.acl.createIndex({ type: 1, functiongroups: 1 })
+// Indice per ricerche su membership dei capability group all'interno dei ruoli
+db.acl.createIndex({ _et: 1, capability_groups: 1 })
 
-// Indice per ricerche su membership delle function all'interno dei function group
-db.acl.createIndex({ type: 1, functions: 1 })
+// Indice per ricerche su membership delle capability all'interno dei gruppi o ruoli
+db.acl.createIndex({ _et: 1, capabilities: 1 })
 
-// Indici per i documenti di tipo function (schema nested, senza "kind")
-// Endpoint: indicizzazione con Partial Filter Expression per i soli documenti con endpoint
+// Indici per i documenti di tipo CAPABILITY (schema nested)
+
+// API: indicizzazione operationid per il RoleMatcher
 db.acl.createIndex(
-  { type: 1, 'endpoint.operationid': 1 },
-  { partialFilterExpression: { type: 'function', 'endpoint.operationid': { $exists: true } } }
+  { _et: 1, 'api.operationid': 1 },
+  { partialFilterExpression: { _et: 'CAPABILITY', 'api.operationid': { $exists: true } } }
 )
-// Capabilities
+
+// UI: indicizzazione appId per il filtraggio menu
 db.acl.createIndex(
-  { type: 1, 'capability.captype': 1 },
-  { partialFilterExpression: { type: 'function', 'capability.captype': { $exists: true } } }
+  { _et: 1, appId: 1 },
+  { partialFilterExpression: { _et: 'CAPABILITY', appId: { $exists: true } } }
 )
+
+// Categoria: per facilitare il raggruppamento nell'aggregazione della LUT
 db.acl.createIndex(
-  { type: 1, 'capability.appid': 1 },
-  { partialFilterExpression: { type: 'function', 'capability.appid': { $exists: true } } }
-)
-// Menu
-db.acl.createIndex(
-  { type: 1, 'menu.appid': 1 },
-  { partialFilterExpression: { type: 'function', 'menu.appid': { $exists: true } } }
+  { _et: 1, category: 1 },
+  { partialFilterExpression: { _et: 'CAPABILITY' } }
 )
 

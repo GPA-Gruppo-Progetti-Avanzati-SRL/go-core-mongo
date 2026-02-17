@@ -29,19 +29,18 @@
   const capabilities = [
 
     // api
-    { _id: 'API_WHOAMI', _et: 'CAPABILITY', category: 'api', description: 'Identità utente corrente', api: { operationid: 'whoami' } },
-    { _id: 'API_MENU', _et: 'CAPABILITY', category: 'api', description: 'Costruzione menu', api: { operationid: 'menu' } },
+    { _id: 'API_TOKEN', _et: 'CAPABILITY', category: 'api', description: 'Identità utente corrente', api: { operationid: 'Token' } },
     { _id: 'API_USER_LIST',  _et: 'CAPABILITY' , category: "api", description: 'Elenco utenti', api: { operationid: 'getUsers' } },
     { _id: 'API_CREATE',  _et: 'CAPABILITY' , category: "api", description: 'Crea utente', api: { operationid: 'createUser' } },
     { _id: 'API_LIST',  _et: 'CAPABILITY' , category: "api", description: 'Elenco report', api: { operationid: 'getReports' } },
 
 
     // ui
-    { _id: 'UI_HOME_ROOT', _et: 'CAPABILITY', description: 'Home', category: "ui", appId :"APP_ROOT", ui: { icon: 'home', endpoint: '/', order: 0 } },
+    { _id: 'UI_HOME_ROOT', _et: 'CAPABILITY', description: 'Home', category: "ui", appId :"APP_ROOT", ui: { icon: 'home', endpoint: '/', order: 0  } },
     { _id: 'UI_HOME_CC', _et: 'CAPABILITY', description: 'Home', category: "ui", appId: "APP_CC",  ui: { icon: 'home', endpoint: '/', order: 0 } },
     { _id: 'UI_HOME_COND', _et: 'CAPABILITY', description: 'Home', category: "ui", appId: "APP_COND",  ui: { icon: 'home', endpoint: '/', order: 0 } },
     { _id: 'UI_HOME_SYSTEM', _et: 'CAPABILITY', description: 'Home', category: "ui", appId: "APP_SYSTEM",  ui: { icon: 'home', endpoint: '/', order: 0 } },
-    { _id: 'UI_USERS_NEW',  _et: 'CAPABILITY', description: 'Menu Gestione Utenti', ui: { endpoint: '/users/new', icon: 'users', order: 10 } },
+    { _id: 'UI_USERS_NEW',  _et: 'CAPABILITY', description: 'Menu Gestione Utenti',  category: 'ui', ui: { endpoint: '/users/new', icon: 'users', order: 10 } },
     { _id: 'UI_USERS_LIST', _et: 'CAPABILITY', category: 'ui', description: 'Elenco utenti (menu)', ui: { endpoint: '/users', icon: 'list', order: 11 } },
     { _id: 'UI_REPORTS', _et: 'CAPABILITY', category: 'ui', description: 'Menu Reportistica', ui: { icon: 'chart', order: 20 , endpoint: '/reports' } },
 
@@ -58,7 +57,7 @@
       _id: 'CG_COMMON',
       _et: 'CAPABILITYGROUP',
       description: 'Funzioni comuni',
-      capabilities: ['API_WHOAMI', 'API_MENU','API_APPS' ,'UI_HOME_ROOT'],
+      capabilities: ['API_TOKEN','UI_HOME_ROOT'],
     },
     {
       _id: 'CG_USERS',

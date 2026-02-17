@@ -28,6 +28,7 @@ type AuthorizationLut struct {
 	roleUis    sync.Map // roleId -> map[string]UINode
 	roleActUi  sync.Map // roleId -> map[string]ActUi
 	roleActApi sync.Map // roleId -> map[string]ActApi
+	apps       sync.Map // appId -> App
 }
 
 type roleFunctionsAggRes struct {
@@ -149,6 +150,7 @@ func (l *AuthorizationLut) refresh() *core.ApplicationError {
 					"appId":       1,
 					"operationid": "$api.operationid",
 					"icon":        "$ui.icon",
+					"menu":        "$ui.menu",
 					"order":       "$ui.order",
 					"endpoint":    "$ui.endpoint",
 					"description": 1,
@@ -246,6 +248,20 @@ func (l *AuthorizationLut) refresh() *core.ApplicationError {
 	}
 
 	l.lastUpdate.Store(time.Now())
+
+	// Caricamento App catalog
+	appColl := l.ls.GetCollection(collName, "")
+	appCur, appErr := appColl.Find(ctx, bson.M{"_et": "APP"})
+	if appErr == nil {
+		defer func() { _ = appCur.Close(ctx) }()
+		for appCur.Next(ctx) {
+			var a App
+			if err := appCur.Decode(&a); err == nil && a.ID != "" {
+				l.apps.Store(a.ID, a)
+			}
+		}
+	}
+
 	log.Info().Msgf("Authorization LUT refresh done: roles=%d", len(res))
 	return nil
 }
@@ -311,7 +327,7 @@ func (l *AuthorizationLut) HasCapability(roles []string, capabilityId string) bo
 
 // GetMenu restituisce un elenco PIATTO dei menu autorizzati per i ruoli passati.
 // Se viene passato un appId, i menu vengono filtrati strettamente per appId.
-func (l *AuthorizationLut) GetMenu(roles []string, appId string) []*authcore.MenuNode {
+func (l *AuthorizationLut) GetPaths(roles []string, appId string) []*authcore.Path {
 	if l.expired(false) {
 		go l.refresh()
 	}
@@ -329,16 +345,52 @@ func (l *AuthorizationLut) GetMenu(roles []string, appId string) []*authcore.Men
 		}
 	}
 
-	out := make([]*authcore.MenuNode, 0, len(menusMap))
+	out := make([]*authcore.Path, 0, len(menusMap))
 	for _, f := range menusMap {
-		n := &authcore.MenuNode{
+		n := &authcore.Path{
 			ID:          f.ID,
 			Description: f.Description,
 			Icon:        f.Icon,
 			Order:       f.Order,
 			Endpoint:    f.Endpoint,
+			Menu:        f.IsMenu,
 		}
 		out = append(out, n)
 	}
+	return out
+}
+
+// GetApps restituisce l'elenco delle applicazioni autorizzate per i ruoli passati.
+func (l *AuthorizationLut) GetApps(roles []string) []*authcore.App {
+	if l.expired(false) {
+		go l.refresh()
+	}
+
+	appIds := make(map[string]struct{})
+	for _, rid := range roles {
+		// Cerchiamo appId nelle UI
+		if v, ok := l.roleUis.Load(rid); ok {
+			for _, node := range v.(map[string]UINode) {
+				if node.AppID != "" {
+					appIds[node.AppID] = struct{}{}
+				}
+			}
+		}
+	}
+
+	out := make([]*authcore.App, 0, len(appIds))
+	for aid := range appIds {
+		if val, ok := l.apps.Load(aid); ok {
+			a := val.(App)
+			out = append(out, &authcore.App{
+				ID:          a.ID,
+				Description: a.Description,
+				Path:        a.Path,
+				Icon:        a.Icon,
+				Order:       a.Order,
+			})
+		}
+	}
+
 	return out
 }

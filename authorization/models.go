@@ -7,6 +7,8 @@ type App struct {
 	EntityType  string `bson:"_et" json:"et"` // "APP"
 	Description string `bson:"description,omitempty" json:"description,omitempty"`
 	Path        string `bson:"path,omitempty" json:"path,omitempty"`
+	Icon        string `bson:"icon,omitempty" json:"icon,omitempty"`
+	Order       int    `bson:"order,omitempty" json:"order,omitempty"`
 }
 
 type Role struct {
@@ -40,6 +42,7 @@ type UINode struct {
 	Order       int    `bson:"order,omitempty" json:"order,omitempty"`
 	Endpoint    string `bson:"endpoint,omitempty" json:"endpoint,omitempty"`
 	Category    string `bson:"category,omitempty" json:"category,omitempty"` // "ui"
+	IsMenu      bool   `bson:"menu" json:"menu"`
 	AppID       string `bson:"appId,omitempty" json:"appId,omitempty"`
 }
 
