@@ -222,10 +222,14 @@ func DeleteOne(ctx context.Context, ms *mongolks.LinkedService, filter IFilter, 
 		log.Error().Err(err).Msgf("Impossibile rimuovere %s %s", filter.GetFilterCollectionName(ctx), err.Error())
 		return core.TechnicalErrorWithError(err)
 	}
+	if res.DeletedCount == 0 {
+		return core.NotFoundError()
+	}
 	if res.DeletedCount != 1 {
 		log.Error().Err(err).Msg("Rimozione incoerente")
 		return core.TechnicalErrorWithCodeAndMessage("MON-AGGINC", "rimozione incoerente")
 	}
+
 	return nil
 }
 
