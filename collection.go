@@ -210,6 +210,41 @@ func ReplaceOne(ctx context.Context, ms *mongolks.LinkedService, filter IFilter,
 	return nil
 }
 
+func DeleteOne(ctx context.Context, ms *mongolks.LinkedService, filter IFilter, ro ...options.Lister[options.DeleteOneOptions]) *core.ApplicationError {
+
+	filterB, errB := buildFilter(filter)
+	if errB != nil {
+		return core.TechnicalErrorWithError(errB)
+	}
+	collectionNotifiche := ms.GetCollection(filter.GetFilterCollectionName(ctx), "")
+	res, err := collectionNotifiche.DeleteOne(ctx, filterB, ro...)
+	if err != nil {
+		log.Error().Err(err).Msgf("Impossibile rimuovere %s %s", filter.GetFilterCollectionName(ctx), err.Error())
+		return core.TechnicalErrorWithError(err)
+	}
+	if res.DeletedCount != 1 {
+		log.Error().Err(err).Msg("Rimozione incoerente")
+		return core.TechnicalErrorWithCodeAndMessage("MON-AGGINC", "rimozione incoerente")
+	}
+	return nil
+}
+
+func DeleteMany(ctx context.Context, ms *mongolks.LinkedService, filter IFilter, ro ...options.Lister[options.DeleteManyOptions]) *core.ApplicationError {
+
+	filterB, errB := buildFilter(filter)
+	if errB != nil {
+		return core.TechnicalErrorWithError(errB)
+	}
+	collectionNotifiche := ms.GetCollection(filter.GetFilterCollectionName(ctx), "")
+	_, err := collectionNotifiche.DeleteMany(ctx, filterB, ro...)
+	if err != nil {
+		log.Error().Err(err).Msgf("Impossibile rimuovere %s %s", filter.GetFilterCollectionName(ctx), err.Error())
+		return core.TechnicalErrorWithError(err)
+	}
+
+	return nil
+}
+
 func ExecTransaction(ctx context.Context, ms *mongolks.LinkedService, transaction func(ctx context.Context) error) *core.ApplicationError {
 	wc := writeconcern.Majority()
 	txnOptions := options.Transaction().SetWriteConcern(wc)
