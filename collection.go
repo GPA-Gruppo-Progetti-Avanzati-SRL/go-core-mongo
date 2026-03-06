@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app"
+	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app/page"
 	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-mongo-common/mongolks"
 	"github.com/rs/zerolog/log"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -288,6 +289,44 @@ func GetIds(ctx context.Context, ms *mongolks.LinkedService, filter string, coll
 	}
 
 	return ids, nil
+}
+
+func GetPageByFilter[T ICollection](ctx context.Context, ms *mongolks.LinkedService, filter IFilter, paging *page.Paging, opts ...options.Lister[options.FindOptions]) ([]T, *core.ApplicationError) {
+	collection := ms.GetCollection(filter.GetFilterCollectionName(ctx), "")
+
+	filterB, errB := buildFilter(filter)
+	if errB != nil {
+		return nil, core.TechnicalErrorWithError(errB)
+	}
+
+	totalItems, errCount := collection.CountDocuments(ctx, filterB)
+	if errCount != nil {
+		return nil, core.TechnicalErrorWithError(errCount)
+	}
+
+	paging.SetTotalItems(totalItems)
+	offset, errP := paging.Paging()
+	if errP != nil {
+		return nil, errP
+	}
+
+	if offset >= 0 {
+		opts = append(opts, options.Find().SetSkip(int64(offset)))
+		opts = append(opts, options.Find().SetLimit(int64(paging.PageSize)))
+	}
+
+	cursor, errFind := collection.Find(ctx, filterB, opts...)
+	if errFind != nil {
+		return nil, core.TechnicalErrorWithError(errFind)
+	}
+	defer cursor.Close(ctx)
+
+	var results []T
+	if errDecode := cursor.All(ctx, &results); errDecode != nil {
+		return nil, core.TechnicalErrorWithError(errDecode)
+	}
+
+	return results, nil
 }
 
 func GetSequence(ctx context.Context, ms *mongolks.LinkedService, sequenceCollection, numeroOrdineSequenceName string) (int, *core.ApplicationError) {
