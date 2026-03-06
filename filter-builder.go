@@ -17,15 +17,16 @@ type IFilter interface {
 }
 
 var operatorHandlers = map[string]func(string, interface{}) (bson.M, error){
-	"$eq":     handleSimpleOperator,
-	"$ne":     handleSimpleOperator,
-	"$gt":     handleSimpleOperator,
-	"$gte":    handleSimpleOperator,
-	"$lt":     handleSimpleOperator,
-	"$lte":    handleSimpleOperator,
-	"$in":     handleArrayOperator,
-	"$nin":    handleArrayOperator,
-	"$exists": handleBoolOperator,
+	"$eq":         handleSimpleOperator,
+	"$ne":         handleSimpleOperator,
+	"$gt":         handleSimpleOperator,
+	"$gte":        handleSimpleOperator,
+	"$lt":         handleSimpleOperator,
+	"$lte":        handleSimpleOperator,
+	"$in":         handleArrayOperator,
+	"$nin":        handleArrayOperator,
+	"$exists":     handleBoolOperator,
+	"$startswith": handleStartsWithOperator,
 }
 
 // buildFilter converte una struct con tag specifici in un bson.M per query MongoDB.
@@ -119,6 +120,14 @@ func handleBoolOperator(operator string, fieldValue interface{}) (bson.M, error)
 		return nil, fmt.Errorf("operatore '%s' richiede un valore di tipo booleano", operator)
 	}
 	return bson.M{operator: boolValue}, nil
+}
+
+func handleStartsWithOperator(operator string, fieldValue interface{}) (bson.M, error) {
+	strValue, ok := fieldValue.(string)
+	if !ok {
+		return nil, fmt.Errorf("operatore '%s' richiede un valore di tipo stringa", operator)
+	}
+	return bson.M{"$regex": "^" + strValue}, nil
 }
 
 func FilterToJson(filter any) string {

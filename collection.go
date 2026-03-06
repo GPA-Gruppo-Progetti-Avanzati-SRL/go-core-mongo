@@ -146,7 +146,7 @@ func InsertMany(ctx context.Context, ms *mongolks.LinkedService, objs []ICollect
 	}
 	if len(res.InsertedIDs) != len(objs) {
 		message := fmt.Sprintf("Mismatch insert %s requested %d vs inserted %d ", collName, len(objs), len(res.InsertedIDs))
-		log.Error().Msgf(message)
+		log.Error().Msg(message)
 		return core.TechnicalErrorWithCodeAndMessage("INSERT-MISMATCH", message)
 	}
 	return nil
@@ -165,7 +165,7 @@ func UpdateOne(ctx context.Context, ms *mongolks.LinkedService, filter IFilter, 
 		return core.TechnicalErrorWithError(err)
 	}
 	if res.ModifiedCount != 1 && res.UpsertedCount != 1 {
-		log.Error().Err(err).Msgf("Aggiornamento incoerente")
+		log.Error().Err(err).Msg("Aggiornamento incoerente")
 		return core.TechnicalErrorWithCodeAndMessage("MON-AGGINC", "aggiornamento incoerente")
 	}
 	return nil
@@ -184,7 +184,7 @@ func UpdateMany(ctx context.Context, ms *mongolks.LinkedService, filter IFilter,
 		return core.TechnicalErrorWithError(err)
 	}
 	if res.ModifiedCount != int64(len) {
-		log.Error().Err(err).Msgf("Aggiornamento incoerente")
+		log.Error().Err(err).Msg("Aggiornamento incoerente")
 		return core.TechnicalErrorWithCodeAndMessage("MON-AGGINC", "aggiornamento incoerente")
 	}
 	return nil
@@ -203,7 +203,7 @@ func ReplaceOne(ctx context.Context, ms *mongolks.LinkedService, filter IFilter,
 		return core.TechnicalErrorWithError(err)
 	}
 	if res.ModifiedCount != 1 && res.UpsertedCount != 1 {
-		log.Error().Err(err).Msgf("Aggiornamento incoerente")
+		log.Error().Err(err).Msg("Aggiornamento incoerente")
 		return core.TechnicalErrorWithCodeAndMessage("MON-AGGINC", "aggiornamento incoerente")
 	}
 	return nil
@@ -246,13 +246,13 @@ func ExecTransaction(ctx context.Context, ms *mongolks.LinkedService, transactio
 func GetIds(ctx context.Context, ms *mongolks.LinkedService, filter string, collectionName string, sort string, limit int) ([]string, *core.ApplicationError) {
 	var filterMap map[string]interface{}
 	if err := json.Unmarshal([]byte(filter), &filterMap); err != nil {
-		log.Error().Err(err).Msgf("error unmarshal filter")
+		log.Error().Err(err).Msg("error unmarshal filter")
 		return nil, core.TechnicalErrorWithCodeAndMessage("PROPERTIES", "error unmarshal filter")
 	}
 	var sortMap map[string]int
 	if sort != "" {
 		if serr := json.Unmarshal([]byte(sort), &sortMap); serr != nil {
-			log.Error().Err(serr).Msgf("error unmarshal sort", serr.Error())
+			log.Error().Err(serr).Msgf("error unmarshal sort: %s", serr.Error())
 			return nil, core.TechnicalErrorWithCodeAndMessage("PROPERTIES", "error unmarshal sort")
 		}
 	}
@@ -321,7 +321,7 @@ func UpdateSingleRecord(ctx context.Context, ms *mongolks.LinkedService, collect
 	collectionRicorrenza := ms.GetCollection(collectionName, "")
 	resR, err := collectionRicorrenza.UpdateOne(ctx, filterR, updateR)
 	if err != nil {
-		log.Error().Err(err).Msgf("Impossibile aggiornare")
+		log.Error().Err(err).Msg("Impossibile aggiornare")
 		return err
 	}
 	if resR.ModifiedCount != 1 {
