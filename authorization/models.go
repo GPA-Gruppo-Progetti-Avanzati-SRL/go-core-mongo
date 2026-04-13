@@ -2,18 +2,27 @@ package authorization
 
 // Modelli di mapping per la collection unica "acl"
 
+type MongoContext struct {
+	ID          string `bson:"_id" json:"id"`
+	EntityType  string `bson:"_et" json:"et"` // "CONTEXT"
+	Description string `bson:"description,omitempty" json:"description,omitempty"`
+	Label       string `bson:"label,omitempty" json:"label,omitempty"`
+	HomeApp     string `bson:"home_app,omitempty" json:"home_app,omitempty"` // app-id dell'home dedicata
+}
+
 type App struct {
 	ID          string `bson:"_id" json:"id"`
 	EntityType  string `bson:"_et" json:"et"` // "APP"
 	Description string `bson:"description,omitempty" json:"description,omitempty"`
-	Path        string `bson:"path,omitempty" json:"path,omitempty"`
+	BasePath    string `bson:"path,omitempty" json:"path,omitempty"`
 	Icon        string `bson:"icon,omitempty" json:"icon,omitempty"`
 	Order       int    `bson:"order,omitempty" json:"order,omitempty"`
 }
 
 type Role struct {
 	ID               string   `bson:"_id" json:"id"`
-	EntityType       string   `bson:"_et" json:"et"` // "ROLE"
+	EntityType       string   `bson:"_et" json:"et"`                       // "ROLE"
+	ContextID        string   `bson:"_cid,omitempty" json:"cid,omitempty"` // contesto di appartenenza
 	Description      string   `bson:"description,omitempty" json:"description,omitempty"`
 	CapabilityGroups []string `bson:"capability_groups,omitempty" json:"capability_groups,omitempty"`
 	Capabilities     []string `bson:"capabilities,omitempty" json:"capabilities,omitempty"`
@@ -27,11 +36,18 @@ type CapabilityGroup struct {
 }
 
 type ApiNode struct {
-	ID          string `bson:"_id" json:"id"`
-	EntityType  string `bson:"_et" json:"et"` // "CAPABILITY"
-	Description string `bson:"description,omitempty" json:"description,omitempty"`
-	Category    string `bson:"category,omitempty" json:"category,omitempty"` // "api"
-	OperationID string `bson:"operationid,omitempty" json:"operationid,omitempty"`
+	ID          string      `bson:"_id" json:"id"`
+	EntityType  string      `bson:"_et" json:"et"` // "CAPABILITY"
+	Description string      `bson:"description,omitempty" json:"description,omitempty"`
+	Category    string      `bson:"category,omitempty" json:"category,omitempty"` // "api"
+	Api         ApiNodeSpec `bson:"api,omitempty" json:"api,omitempty"`
+}
+
+// ApiNodeSpec raccoglie le specifiche di un'API capability.
+type ApiNodeSpec struct {
+	OperationID string   `bson:"operationid,omitempty" json:"operationid,omitempty"` // uso backend (go-core-api)
+	Path        string   `bson:"path,omitempty" json:"path,omitempty"`               // uso gateway: es. /api/persons/**
+	Methods     []string `bson:"methods,omitempty" json:"methods,omitempty"`         // es. ["GET","POST"]; vuoto = tutti
 }
 
 type UINode struct {

@@ -1,9 +1,9 @@
 module github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-mongo
 
-go 1.25.5
+go 1.26.0
 
 require (
-	github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app v0.0.16
+	github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app v0.0.21
 	github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-mongo-common v1.0.4-0.20260304164903-0804dce92876
 	github.com/rs/zerolog v1.34.0
 	go.mongodb.org/mongo-driver/v2 v2.4.1

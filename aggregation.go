@@ -243,7 +243,6 @@ func ExecuteAggregation[T any](ctx context.Context, ls *mongolks.LinkedService, 
 	return results, nil
 }
 func PipelineToJson(pipeline mongo.Pipeline) string {
-	log.Warn().Msg("PipelineToJson")
 	// Ensure we never return an empty string so logs are not blank
 	if pipeline == nil || len(pipeline) == 0 {
 		return "[]"

@@ -2,6 +2,7 @@ package authorization
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -24,15 +25,18 @@ type AuthorizationLut struct {
 	minRefresh time.Duration
 	ls         *mongolks.LinkedService
 
-	roleApis   sync.Map // roleId -> map[string]ApiNode
-	roleUis    sync.Map // roleId -> map[string]UINode
-	roleActUi  sync.Map // roleId -> map[string]ActUi
-	roleActApi sync.Map // roleId -> map[string]ActApi
-	apps       sync.Map // appId -> App
+	roleApis     sync.Map // roleId -> map[string]ApiNode
+	roleUis      sync.Map // roleId -> map[string]UINode
+	roleActUi    sync.Map // roleId -> map[string]ActUi
+	roleActApi   sync.Map // roleId -> map[string]ActApi
+	apps         sync.Map // appId -> App
+	contexts     sync.Map // contextId -> MongoContext
+	roleContexts sync.Map // roleId -> contextId  (assente se il ruolo è context-agnostic)
 }
 
 type roleFunctionsAggRes struct {
 	RoleID    string    `bson:"_id" json:"_id"`
+	ContextID string    `bson:"cid" json:"cid"` // da _cid del role
 	Apis      []ApiNode `bson:"apis" json:"apis"`
 	UIs       []UINode  `bson:"uis" json:"uis"`
 	ActionUI  []ActUi   `bson:"actsUI" json:"actsUI"`
@@ -87,16 +91,13 @@ func (l *AuthorizationLut) refresh() *core.ApplicationError {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	// Esegue aggregazione inline (senza YAML): risultato [{ _id: roleId, functions: [..] }]
-
 	collName := "acl"
-
 	coll := l.ls.GetCollection(collName, "")
 
 	pipeline := mongo.Pipeline{
 		// 1) Ruoli
 		bson.D{{Key: "$match", Value: bson.M{"_et": "ROLE"}}},
-		bson.D{{Key: "$project", Value: bson.M{"_id": 1, "capability_groups": 1, "capabilities": 1}}},
+		bson.D{{Key: "$project", Value: bson.M{"_id": 1, "_cid": 1, "capability_groups": 1, "capabilities": 1}}},
 
 		// 2a) Unwind capability_groups e lookup
 		bson.D{{Key: "$unwind", Value: bson.M{"path": "$capability_groups", "preserveNullAndEmptyArrays": true}}},
@@ -114,7 +115,8 @@ func (l *AuthorizationLut) refresh() *core.ApplicationError {
 
 		// Combinazione capabilities dirette + quelle del gruppo
 		bson.D{{Key: "$project", Value: bson.M{
-			"_id": 1,
+			"_id":  1,
+			"_cid": 1,
 			"all_caps": bson.M{"$setUnion": bson.A{
 				bson.M{"$ifNull": bson.A{"$capabilities", bson.A{}}},
 				bson.M{"$ifNull": bson.A{"$cg_caps.capabilities", bson.A{}}},
@@ -124,10 +126,12 @@ func (l *AuthorizationLut) refresh() *core.ApplicationError {
 		// 3) Group per rimettere insieme i pezzi dei vari CG esplosi con unwind
 		bson.D{{Key: "$group", Value: bson.M{
 			"_id":      "$_id",
+			"_cid":     bson.M{"$first": "$_cid"},
 			"all_caps": bson.M{"$addToSet": "$all_caps"},
 		}}},
 		bson.D{{Key: "$project", Value: bson.M{
-			"_id": 1,
+			"_id":  1,
+			"_cid": 1,
 			"all_caps": bson.M{"$reduce": bson.M{
 				"input":        "$all_caps",
 				"initialValue": bson.A{},
@@ -163,6 +167,7 @@ func (l *AuthorizationLut) refresh() *core.ApplicationError {
 		// 5) Group per ruolo con insiemi distinti per categorie
 		bson.D{{Key: "$group", Value: bson.M{
 			"_id": "$_id",
+			"cid": bson.M{"$first": "$_cid"},
 			"apis": bson.M{"$addToSet": bson.M{
 				"$cond": bson.A{
 					bson.M{"$eq": bson.A{"$capability.category", "api"}},
@@ -245,13 +250,17 @@ func (l *AuthorizationLut) refresh() *core.ApplicationError {
 			}
 		}
 		l.roleActApi.Store(r.RoleID, actApiMap)
+
+		// roleContexts: registra solo i ruoli con contesto
+		if r.ContextID != "" {
+			l.roleContexts.Store(r.RoleID, r.ContextID)
+		}
 	}
 
 	l.lastUpdate.Store(time.Now())
 
 	// Caricamento App catalog
-	appColl := l.ls.GetCollection(collName, "")
-	appCur, appErr := appColl.Find(ctx, bson.M{"_et": "APP"})
+	appCur, appErr := coll.Find(ctx, bson.M{"_et": "APP"})
 	if appErr == nil {
 		defer func() { _ = appCur.Close(ctx) }()
 		for appCur.Next(ctx) {
@@ -262,11 +271,87 @@ func (l *AuthorizationLut) refresh() *core.ApplicationError {
 		}
 	}
 
+	// Caricamento Context catalog
+	ctxCur, ctxErr := coll.Find(ctx, bson.M{"_et": "CONTEXT"})
+	if ctxErr == nil {
+		defer func() { _ = ctxCur.Close(ctx) }()
+		for ctxCur.Next(ctx) {
+			var c MongoContext
+			if err := ctxCur.Decode(&c); err == nil && c.ID != "" {
+				l.contexts.Store(c.ID, c)
+			}
+		}
+	}
+
 	log.Info().Msgf("Authorization LUT refresh done: roles=%d", len(res))
 	return nil
 }
 
-// Match implementa RoleMatcher per endpoint (operationId).
+// AllContextIDs restituisce tutti gli ID di contesto presenti nella LUT (da MongoDB _et: CONTEXT).
+// Usato dal gateway al boot per registrare le route /{cid}/*, indipendentemente dai ruoli utente.
+func (l *AuthorizationLut) AllContextIDs() []string {
+	var ids []string
+	l.contexts.Range(func(key, _ interface{}) bool {
+		ids = append(ids, key.(string))
+		return true
+	})
+	return ids
+}
+
+// HomeAppForContext restituisce l'ID dell'app home designata per il contesto indicato.
+func (l *AuthorizationLut) HomeAppForContext(contextID string) string {
+	if val, ok := l.contexts.Load(contextID); ok {
+		return val.(MongoContext).HomeApp
+	}
+	return ""
+}
+
+// FilterRolesByContext restituisce i ruoli validi per il contesto indicato.
+// Sono inclusi i ruoli con _cid == contextId e i ruoli senza contesto (context-agnostic).
+// Se contextId è vuoto restituisce tutti i ruoli invariati.
+func (l *AuthorizationLut) FilterRolesByContext(roles []string, contextId string) []string {
+	if contextId == "" {
+		return roles
+	}
+	result := make([]string, 0, len(roles))
+	for _, role := range roles {
+		cid, hasCid := l.roleContexts.Load(role)
+		if !hasCid || cid.(string) == contextId {
+			result = append(result, role)
+		}
+	}
+	return result
+}
+
+// GetContexts restituisce i contesti accessibili per i ruoli passati.
+// Deve ricevere allRoles (non filtrati) per fornire visione globale.
+func (l *AuthorizationLut) GetContexts(roles []string) []*authcore.Context {
+	if l.expired(false) {
+		go l.refresh()
+	}
+
+	seen := make(map[string]struct{})
+	for _, role := range roles {
+		if cid, ok := l.roleContexts.Load(role); ok {
+			seen[cid.(string)] = struct{}{}
+		}
+	}
+
+	out := make([]*authcore.Context, 0, len(seen))
+	for cid := range seen {
+		if val, ok := l.contexts.Load(cid); ok {
+			c := val.(MongoContext)
+			out = append(out, &authcore.Context{
+				ID:          c.ID,
+				Description: c.Description,
+				Label:       c.Label,
+			})
+		}
+	}
+	return out
+}
+
+// Match verifica l'autorizzazione per operationId (uso backend go-core-api).
 func (l *AuthorizationLut) Match(roles []string, operationId string) bool {
 	if l.expired(false) {
 		go l.refresh()
@@ -274,7 +359,7 @@ func (l *AuthorizationLut) Match(roles []string, operationId string) bool {
 	for _, rid := range roles {
 		if v, ok := l.roleApis.Load(rid); ok {
 			for _, node := range v.(map[string]ApiNode) {
-				if node.OperationID == operationId {
+				if node.Api.OperationID == operationId {
 					return true
 				}
 			}
@@ -283,8 +368,30 @@ func (l *AuthorizationLut) Match(roles []string, operationId string) bool {
 	return false
 }
 
+// MatchRequest verifica l'autorizzazione per path HTTP + method (uso backend/gateway).
+// Il campo Api.Path del ApiNode supporta glob: /api/persons/**, /api/persons/*.
+// Se Api.OperationID è valorizzato e il path è vuoto, viene usato per il matching (fallback).
+// Api.Methods vuoto su un nodo significa tutti i metodi.
+func (l *AuthorizationLut) MatchRequest(roles []string, path, method string) bool {
+	if l.expired(false) {
+		go l.refresh()
+	}
+	for _, rid := range roles {
+		if v, ok := l.roleApis.Load(rid); ok {
+			for _, node := range v.(map[string]ApiNode) {
+				if node.Api.Path != "" {
+					if matchGlob(node.Api.Path, path) && matchMethods(node.Api.Methods, method) {
+						return true
+					}
+				}
+			}
+		}
+	}
+	return false
+}
+
 // GetCapabilities restituisce la lista di capabilities abilitate per i ruoli.
-// Applica il filtro appId solo alle categorie 'ui' e 'action_ui'.
+// Applica il filtro appId solo alle categorie 'action_ui'.
 func (l *AuthorizationLut) GetCapabilities(roles []string, appId string) []string {
 	if l.expired(false) {
 		go l.refresh()
@@ -292,7 +399,6 @@ func (l *AuthorizationLut) GetCapabilities(roles []string, appId string) []strin
 
 	outSet := make(map[string]struct{})
 	for _, rid := range roles {
-		// 3. Action UI (con filtro appId)
 		if v, ok := l.roleActUi.Load(rid); ok {
 			for _, node := range v.(map[string]ActUi) {
 				if node.AppID == "" || node.AppID == appId {
@@ -302,6 +408,27 @@ func (l *AuthorizationLut) GetCapabilities(roles []string, appId string) []strin
 		}
 	}
 
+	out := make([]string, 0, len(outSet))
+	for k := range outSet {
+		out = append(out, k)
+	}
+	return out
+}
+
+// GetServerCapabilities restituisce gli id delle capability di tipo "api" (server-side)
+// abilitate per i ruoli. Non filtra per appId — le api capabilities non sono app-scoped.
+func (l *AuthorizationLut) GetServerCapabilities(roles []string) []string {
+	if l.expired(false) {
+		go l.refresh()
+	}
+	outSet := make(map[string]struct{})
+	for _, rid := range roles {
+		if v, ok := l.roleApis.Load(rid); ok {
+			for _, node := range v.(map[string]ApiNode) {
+				outSet[node.ID] = struct{}{}
+			}
+		}
+	}
 	out := make([]string, 0, len(outSet))
 	for k := range outSet {
 		out = append(out, k)
@@ -325,19 +452,17 @@ func (l *AuthorizationLut) HasCapability(roles []string, capabilityId string) bo
 	return false
 }
 
-// GetMenu restituisce un elenco PIATTO dei menu autorizzati per i ruoli passati.
+// GetPaths restituisce un elenco PIATTO dei menu autorizzati per i ruoli passati.
 // Se viene passato un appId, i menu vengono filtrati strettamente per appId.
 func (l *AuthorizationLut) GetPaths(roles []string, appId string) []*authcore.Path {
 	if l.expired(false) {
 		go l.refresh()
 	}
 
-	// Mappa per evitare duplicati di menu tra ruoli diversi
 	menusMap := make(map[string]*UINode)
 	for _, rid := range roles {
 		if v, ok := l.roleUis.Load(rid); ok {
 			for id, node := range v.(map[string]UINode) {
-				// Filtro stretto: includi solo voci con appid esattamente uguale a filterApp
 				if node.AppID == appId {
 					menusMap[id] = &node
 				}
@@ -347,50 +472,150 @@ func (l *AuthorizationLut) GetPaths(roles []string, appId string) []*authcore.Pa
 
 	out := make([]*authcore.Path, 0, len(menusMap))
 	for _, f := range menusMap {
-		n := &authcore.Path{
+		out = append(out, &authcore.Path{
 			ID:          f.ID,
 			Description: f.Description,
 			Icon:        f.Icon,
 			Order:       f.Order,
 			Endpoint:    f.Endpoint,
 			Menu:        f.IsMenu,
-		}
-		out = append(out, n)
+		})
 	}
 	return out
 }
 
-// GetApps restituisce l'elenco delle applicazioni autorizzate per i ruoli passati.
-func (l *AuthorizationLut) GetApps(roles []string) []*authcore.App {
+// GetApps restituisce le app navigabili per i ruoli e il contesto indicati.
+//
+// L'home app (BasePath == "/") è sempre inclusa:
+//   - senza contesto → path "/"
+//   - con contesto   → path "/{contextID}/"
+//
+// Le altre app sono incluse solo se contextID è valorizzato e l'utente ha ruoli
+// (filtrati per contesto) che hanno almeno un UI node per quell'app.
+// I path diventano "/{contextID}/{basePath}".
+//
+// Deve ricevere allRoles (non filtrati per contesto).
+func (l *AuthorizationLut) GetApps(roles []string, contextID string) []*authcore.App {
 	if l.expired(false) {
 		go l.refresh()
 	}
 
-	appIds := make(map[string]struct{})
-	for _, rid := range roles {
-		// Cerchiamo appId nelle UI
+	// Ruoli filtrati per contesto: usati per determinare le app accessibili
+	ctxRoles := roles
+	if contextID != "" {
+		ctxRoles = l.FilterRolesByContext(roles, contextID)
+	}
+
+	// App accessibili tramite UI nodes dei ruoli filtrati
+	accessible := make(map[string]struct{})
+	for _, rid := range ctxRoles {
 		if v, ok := l.roleUis.Load(rid); ok {
 			for _, node := range v.(map[string]UINode) {
 				if node.AppID != "" {
-					appIds[node.AppID] = struct{}{}
+					accessible[node.AppID] = struct{}{}
 				}
 			}
 		}
 	}
 
-	out := make([]*authcore.App, 0, len(appIds))
-	for aid := range appIds {
-		if val, ok := l.apps.Load(aid); ok {
-			a := val.(App)
-			out = append(out, &authcore.App{
-				ID:          a.ID,
-				Description: a.Description,
-				Path:        a.Path,
-				Icon:        a.Icon,
-				Order:       a.Order,
-			})
+	// Modalità no-context: nessun ruolo dell'utente ha un _cid.
+	// In questo caso tutte le app sono esposte direttamente (path originali, nessun prefisso).
+	noContextMode := contextID == ""
+	if noContextMode {
+		for _, rid := range roles {
+			if _, ok := l.roleContexts.Load(rid); ok {
+				noContextMode = false
+				break
+			}
 		}
 	}
 
+	cid := strings.ToLower(contextID)
+	out := make([]*authcore.App, 0)
+
+	l.apps.Range(func(_, val interface{}) bool {
+		a := val.(App)
+		isHome := a.BasePath == "/"
+
+		if !isHome {
+			if contextID == "" && !noContextMode {
+				return true // senza contesto le app non-home non vengono esposte
+			}
+			if _, ok := accessible[a.ID]; !ok {
+				return true // non accessibile tramite ruoli
+			}
+		}
+
+		path := a.BasePath
+		appCtxID := ""
+		if contextID != "" {
+			if isHome {
+				path = "/" + cid + "/"
+			} else {
+				path = "/" + cid + a.BasePath
+			}
+			appCtxID = contextID
+		}
+
+		out = append(out, &authcore.App{
+			ID:          a.ID,
+			Description: a.Description,
+			Path:        path,
+			Icon:        a.Icon,
+			Order:       a.Order,
+			ContextID:   appCtxID,
+		})
+		return true
+	})
+
 	return out
+}
+
+// / matchGlob matcha un pattern HTTP contro un path reale.
+// Supporta:
+//   - /api/**              → qualsiasi path che inizia con /api/
+//   - /api/persons/*       → segmento singolo jolly: /api/persons/123
+//   - /api/persons/:id     → path param nominale (singolo segmento)
+//   - /api/persons/{id}    → path param nominale stile OpenAPI (singolo segmento)
+//   - /api/persons/:id/orders → param in mezzo al path
+//   - /api/persons         → match esatto
+func matchGlob(pattern, path string) bool {
+	if pattern == path {
+		return true
+	}
+	// /** alla fine: prefisso libero
+	if strings.HasSuffix(pattern, "/**") {
+		prefix := strings.TrimSuffix(pattern, "/**")
+		return path == prefix || strings.HasPrefix(path, prefix+"/")
+	}
+	// match segmento per segmento
+	pp := strings.Split(strings.Trim(pattern, "/"), "/")
+	rp := strings.Split(strings.Trim(path, "/"), "/")
+	if len(pp) != len(rp) {
+		return false
+	}
+	for i := range pp {
+		seg := pp[i]
+		if seg == "*" || strings.HasPrefix(seg, ":") ||
+			(strings.HasPrefix(seg, "{") && strings.HasSuffix(seg, "}")) {
+			continue // wildcard o path param: matcha qualsiasi valore
+		}
+		if seg != rp[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// matchMethods restituisce true se method è nella lista (case-insensitive) o se la lista è vuota.
+func matchMethods(methods []string, method string) bool {
+	if len(methods) == 0 {
+		return true
+	}
+	for _, m := range methods {
+		if strings.EqualFold(m, method) {
+			return true
+		}
+	}
+	return false
 }
