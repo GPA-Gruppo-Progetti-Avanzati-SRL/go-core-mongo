@@ -92,14 +92,14 @@ func GetObjectsByFilter[T ICollection](ctx context.Context, ms *mongolks.LinkedS
 
 }
 
-func GetObjectsByFilterSorted[T ICollection](ctx context.Context, ms *mongolks.LinkedService, filter IFilter, sort map[string]int) ([]*T, *core.ApplicationError) {
+func GetObjectsByFilterSorted[T ICollection](ctx context.Context, ms *mongolks.LinkedService, filter IFilter, sort page.SortRequest) ([]*T, *core.ApplicationError) {
 	var obj T
 	collection := obj.GetCollectionName(ctx)
 	filterB, errB := buildFilter(filter)
 	if errB != nil {
 		return nil, core.TechnicalErrorWithError(errB)
 	}
-	findOptions := options.Find().SetSort(sort)
+	findOptions := options.Find().SetSort(SortToBson(sort))
 	cur, err := ms.GetCollection(collection, "").Find(ctx, filterB, findOptions)
 	if err != nil {
 		return nil, core.TechnicalErrorWithCodeAndMessage("MONGO-GOBFS-ERRFIND", err.Error())
