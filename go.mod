@@ -3,9 +3,9 @@ module github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-mongo
 go 1.26.0
 
 require (
-	github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app v0.0.24
+	github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app v0.0.25
 	github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-mongo-common v1.0.10-0.20260424155043-a525ef770912
-	github.com/rs/zerolog v1.35.0
+	github.com/rs/zerolog v1.35.1
 	go.mongodb.org/mongo-driver/v2 v2.4.1
 	go.uber.org/fx v1.24.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -35,7 +35,7 @@ require (
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.28.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/ipfans/fxlogger v0.2.0 // indirect
-	github.com/klauspost/compress v1.18.2 // indirect
+	github.com/klauspost/compress v1.18.4 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/lucasjones/reggen v0.0.0-20200904144131-37ba4fa293bb // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
