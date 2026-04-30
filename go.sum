@@ -2,8 +2,8 @@ github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app v0.0.24 h1:6rXQ1Ue07Ahw9
 github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app v0.0.24/go.mod h1:co5QcIXOwEVaylqCFem1ERM3rCzt7yhLB2s+260zS+0=
 github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-common v0.1.93 h1:NAGqo6LdFsY+EZ+YLhgIIkUcHxqRPtRawRCeGHICMtk=
 github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-common v0.1.93/go.mod h1:Q456LEsf8ywWb9GU1sIesWakRSIWe6MisfM2Q5lDJlw=
-github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-mongo-common v1.0.4-0.20260304164903-0804dce92876 h1:y3U/qvNMBKfo55T5fJf6lY8ejLo00KpDtqd/ibhOaYQ=
-github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-mongo-common v1.0.4-0.20260304164903-0804dce92876/go.mod h1:qk2X+JT8Wob6IWPlLQ/hQ/cjtq/pQ4rW5eIsWztFUnE=
+github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-mongo-common v1.0.10-0.20260424155043-a525ef770912 h1:UYTXP3pPZXjn48IjV49ir8wuj/syAMWc4DdxBM1qe7A=
+github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-mongo-common v1.0.10-0.20260424155043-a525ef770912/go.mod h1:qk2X+JT8Wob6IWPlLQ/hQ/cjtq/pQ4rW5eIsWztFUnE=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
 github.com/cenkalti/backoff/v5 v5.0.3 h1:ZN+IMa753KfX5hd8vVaMixjnqRZ3y8CuJKRKj1xcsSM=
