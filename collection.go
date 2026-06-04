@@ -114,17 +114,18 @@ func GetObjectsByFilterSorted[T ICollection](ctx context.Context, ms *mongolks.L
 
 }
 
-func InsertOne(ctx context.Context, ms *mongolks.LinkedService, obj ICollection, opts ...options.Lister[options.InsertOneOptions]) *core.ApplicationError {
+func InsertOne(ctx context.Context, ms *mongolks.LinkedService, obj ICollection, opts ...options.Lister[options.InsertOneOptions]) (any, *core.ApplicationError) {
 
 	collection := ms.GetCollection(obj.GetCollectionName(ctx), "")
 	res, errIns := collection.InsertOne(ctx, obj, opts...)
+
 	if errIns != nil {
-		return core.TechnicalErrorWithError(errIns)
+		return nil, core.TechnicalErrorWithError(errIns)
 	}
 	if res.InsertedID == nil {
-		return core.NotFoundError()
+		return nil, core.NotFoundError()
 	}
-	return nil
+	return res.InsertedID, nil
 }
 
 func InsertMany(ctx context.Context, ms *mongolks.LinkedService, objs []ICollection, opts ...options.Lister[options.InsertManyOptions]) *core.ApplicationError {
