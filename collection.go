@@ -368,17 +368,18 @@ func GetPageByFilter[T ICollection](ctx context.Context, ms *mongolks.LinkedServ
 	return results, nil
 }
 
-func GetSequence(ctx context.Context, ms *mongolks.LinkedService, sequenceCollection, numeroOrdineSequenceName string) (int, *core.ApplicationError) {
+func GetSequence(ctx context.Context, ms *mongolks.LinkedService, sequenceCollection, sequenceName string) (int, *core.ApplicationError) {
 	seqColl := ms.GetCollection(sequenceCollection, "")
 
 	// Define the filter and update for the findAndModify equivalent
-	filter := bson.M{"_id": numeroOrdineSequenceName}
+	filter := bson.M{"_id": sequenceName}
 	update := bson.M{"$inc": bson.M{"sequence": 1}}
 
-	// Set options to return the new document after update
+	// Set options to return the new document after update; upsert creates the record on first access
 	opts := options.FindOneAndUpdate().
 		SetReturnDocument(options.After).
-		SetProjection(bson.M{"sequence": 1, "_id": 0})
+		SetProjection(bson.M{"sequence": 1, "_id": 0}).
+		SetUpsert(true)
 
 	// Perform the FindOneAndUpdate operation
 	var result bson.M
