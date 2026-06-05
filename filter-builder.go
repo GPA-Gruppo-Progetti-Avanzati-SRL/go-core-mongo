@@ -203,15 +203,9 @@ func FilterToJson(filter any) string {
 	mappa := bson.M{"filter": filter}
 
 	value, err := bson.MarshalExtJSON(mappa, false, false)
-
 	if err != nil {
 		return ""
 	}
-
-	json, err := PrettyPrintJson(value)
-	if err != nil {
-		return ""
-	}
-	return json
+	return string(value)
 
 }
