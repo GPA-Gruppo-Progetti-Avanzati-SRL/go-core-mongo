@@ -4,6 +4,8 @@ github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-common v0.1.95 h1:vuA6MhQ0/wuJmZ
 github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-common v0.1.95/go.mod h1:Q456LEsf8ywWb9GU1sIesWakRSIWe6MisfM2Q5lDJlw=
 github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-mongo-common v1.0.16-0.20260624144754-57c298a21148 h1:pvnqyQNlkTJ+Ss8GTqA215Y74lvC9rB0/lncH7Y9f1g=
 github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-mongo-common v1.0.16-0.20260624144754-57c298a21148/go.mod h1:+1m31czj3tmksWPv4Ct1HGwZ2pyfKGvJsGq5G+IJPRE=
+github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-mongo-common v1.0.16-0.20260625084127-6c7a35eb03d4 h1:eQlYJnnpKqz3pfp86waMEozyntAFNTzLuvtDVNsY/mY=
+github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-mongo-common v1.0.16-0.20260625084127-6c7a35eb03d4/go.mod h1:AGfjOraVlqvsG3JO4Y1riJ3IrFuKXfMnGWd6nZ5WSuc=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
 github.com/cenkalti/backoff/v5 v5.0.3 h1:ZN+IMa753KfX5hd8vVaMixjnqRZ3y8CuJKRKj1xcsSM=
