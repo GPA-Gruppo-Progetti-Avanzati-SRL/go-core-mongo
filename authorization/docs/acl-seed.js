@@ -6,11 +6,15 @@
 // Nota: lo script è idempotente. Ogni documento è inserito via upsert su _id.
 // Se vuoi ripartire da zero imposta RESET=true qui sotto.
 
-(function () {
-  const coll = db.getCollection('acl');
-  const RESET = true; // <--- metti true per cancellare tutti i documenti dalla collection
+const reset = process.env.RESET || false; // <--- metti true per cancellare tutti i documenti dalla collection
 
-  if (RESET) {
+// print reset value
+(function(){ print(reset) })();
+
+( function() {
+  const coll = db.getCollection('acl');
+
+  if (reset) {
     print('\n[acl-seed] DELETE MANY {}');
     coll.deleteMany({});
   }
@@ -20,7 +24,7 @@
   }
 
   const apps  = [
-      {_id: "APP_ROOT",  _et: 'APP', description: "Applicazione principale", path :"/"},
+    {_id: "APP_ROOT",  _et: 'APP', description: "Applicazione principale", path :"/"},
     {_id: "APP_COND", _et: 'APP', description: "Applicazione condizioni", path :"/condizioni"},
     {_id: "APP_CC", _et: 'APP', description: "Applicazione conti correnti", path :"/conti"},
     {_id: "APP_SYSTEM",  _et: 'APP', description: "Applicazione system", path :"/system"},
