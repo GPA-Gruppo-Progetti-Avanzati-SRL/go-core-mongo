@@ -1,6 +1,6 @@
 module github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-mongo
 
-go 1.26.5
+go 1.27-rc2
 
 require (
 	github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app v0.0.25

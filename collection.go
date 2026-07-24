@@ -20,14 +20,14 @@ type ICollection interface {
 	GetCollectionName(ctx context.Context) string
 }
 
-func GetObjectById[T ICollection](ctx context.Context, ms *mongolks.LinkedService, id string) (*T, *core.ApplicationError) {
+func (s *Service) GetObjectById[T ICollection](ctx context.Context, id string) (*T, *core.ApplicationError) {
 	var result T
 
 	collection := result.GetCollectionName(ctx)
 	filter := bson.D{
 		bson.E{Key: "_id", Value: id},
 	}
-	err := ms.GetCollection(collection, "").FindOne(ctx, filter).Decode(&result)
+	err := s.GetCollection(collection, "").FindOne(ctx, filter).Decode(&result)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return nil, core.NotFoundError()
@@ -38,14 +38,14 @@ func GetObjectById[T ICollection](ctx context.Context, ms *mongolks.LinkedServic
 
 }
 
-func CountDocuments(ctx context.Context, ms *mongolks.LinkedService, filter IFilter) (int64, *core.ApplicationError) {
+func (s *Service) CountDocuments(ctx context.Context, filter IFilter) (int64, *core.ApplicationError) {
 
 	collection := filter.GetFilterCollectionName(ctx)
 	filterB, errB := buildFilter(filter)
 	if errB != nil {
 		return 0, core.TechnicalErrorWithError(errB)
 	}
-	i, err := ms.GetCollection(collection, "").CountDocuments(ctx, filterB)
+	i, err := s.GetCollection(collection, "").CountDocuments(ctx, filterB)
 	if err != nil {
 		return 0, core.TechnicalErrorWithError(err)
 	}
@@ -53,14 +53,14 @@ func CountDocuments(ctx context.Context, ms *mongolks.LinkedService, filter IFil
 
 }
 
-func GetObjectByFilter[T ICollection](ctx context.Context, ms *mongolks.LinkedService, filter IFilter) (*T, *core.ApplicationError) {
+func (s *Service) GetObjectByFilter[T ICollection](ctx context.Context, filter IFilter) (*T, *core.ApplicationError) {
 	var obj T
 	collection := obj.GetCollectionName(ctx)
 	filterB, errB := buildFilter(filter)
 	if errB != nil {
 		return nil, core.TechnicalErrorWithError(errB)
 	}
-	err := ms.GetCollection(collection, "").FindOne(ctx, filterB).Decode(&obj)
+	err := s.GetCollection(collection, "").FindOne(ctx, filterB).Decode(&obj)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return nil, core.NotFoundError()
@@ -71,14 +71,14 @@ func GetObjectByFilter[T ICollection](ctx context.Context, ms *mongolks.LinkedSe
 
 }
 
-func GetObjectsByFilter[T ICollection](ctx context.Context, ms *mongolks.LinkedService, filter IFilter) ([]*T, *core.ApplicationError) {
+func (s *Service) GetObjectsByFilter[T ICollection](ctx context.Context, filter IFilter) ([]*T, *core.ApplicationError) {
 	var obj T
 	collection := obj.GetCollectionName(ctx)
 	filterB, errB := buildFilter(filter)
 	if errB != nil {
 		return nil, core.TechnicalErrorWithError(errB)
 	}
-	cur, err := ms.GetCollection(collection, "").Find(ctx, filterB)
+	cur, err := s.GetCollection(collection, "").Find(ctx, filterB)
 	if err != nil {
 		return nil, core.TechnicalErrorWithCodeAndMessage("MONGO-GOBF-ERRFIND", err.Error())
 	}
@@ -92,7 +92,7 @@ func GetObjectsByFilter[T ICollection](ctx context.Context, ms *mongolks.LinkedS
 
 }
 
-func GetObjectsByFilterSorted[T ICollection](ctx context.Context, ms *mongolks.LinkedService, filter IFilter, sort page.SortRequest) ([]*T, *core.ApplicationError) {
+func (s *Service) GetObjectsByFilterSorted[T ICollection](ctx context.Context, filter IFilter, sort page.SortRequest) ([]*T, *core.ApplicationError) {
 	var obj T
 	collection := obj.GetCollectionName(ctx)
 	filterB, errB := buildFilter(filter)
@@ -100,7 +100,7 @@ func GetObjectsByFilterSorted[T ICollection](ctx context.Context, ms *mongolks.L
 		return nil, core.TechnicalErrorWithError(errB)
 	}
 	findOptions := options.Find().SetSort(SortToBson(sort))
-	cur, err := ms.GetCollection(collection, "").Find(ctx, filterB, findOptions)
+	cur, err := s.GetCollection(collection, "").Find(ctx, filterB, findOptions)
 	if err != nil {
 		return nil, core.TechnicalErrorWithCodeAndMessage("MONGO-GOBFS-ERRFIND", err.Error())
 	}
@@ -114,9 +114,9 @@ func GetObjectsByFilterSorted[T ICollection](ctx context.Context, ms *mongolks.L
 
 }
 
-func InsertOne(ctx context.Context, ms *mongolks.LinkedService, obj ICollection, opts ...options.Lister[options.InsertOneOptions]) (any, *core.ApplicationError) {
+func (s *Service) InsertOne[T ICollection](ctx context.Context, obj T, opts ...options.Lister[options.InsertOneOptions]) (any, *core.ApplicationError) {
 
-	collection := ms.GetCollection(obj.GetCollectionName(ctx), "")
+	collection := s.GetCollection(obj.GetCollectionName(ctx), "")
 	res, errIns := collection.InsertOne(ctx, obj, opts...)
 
 	if errIns != nil {
@@ -128,26 +128,16 @@ func InsertOne(ctx context.Context, ms *mongolks.LinkedService, obj ICollection,
 	return res.InsertedID, nil
 }
 
-func InsertMany(ctx context.Context, ms *mongolks.LinkedService, objs []ICollection, opts ...options.Lister[options.InsertManyOptions]) *core.ApplicationError {
-	collName := ""
-	list := make([]interface{}, 0)
-	for _, v := range objs {
-		if collName == "" {
-			collName = v.GetCollectionName(ctx)
-		}
-		if collName != v.GetCollectionName(ctx) {
-			return core.TechnicalErrorWithCodeAndMessage("COLL-MIX", fmt.Sprintf("Get Collection Mix %s %s", collName, v.GetCollectionName(ctx)))
-		}
-		list = append(list, v)
-	}
+func (s *Service) InsertMany[T ICollection](ctx context.Context, ms *mongolks.LinkedService, list []T, opts ...options.Lister[options.InsertManyOptions]) *core.ApplicationError {
+	var obj T
+	collection := s.GetCollection(obj.GetCollectionName(ctx), "")
 
-	collection := ms.GetCollection(collName, "")
 	res, errIns := collection.InsertMany(ctx, list, opts...)
 	if errIns != nil {
 		return core.TechnicalErrorWithError(errIns)
 	}
-	if len(res.InsertedIDs) != len(objs) {
-		message := fmt.Sprintf("Mismatch insert %s requested %d vs inserted %d ", collName, len(objs), len(res.InsertedIDs))
+	if len(res.InsertedIDs) != len(list) {
+		message := fmt.Sprintf("Mismatch insert %s requested %d vs inserted %d ", collection, len(list), len(res.InsertedIDs))
 		log.Error().Msg(message)
 		return core.TechnicalErrorWithCodeAndMessage("INSERT-MISMATCH", message)
 	}
@@ -192,7 +182,7 @@ func UpdateMany(ctx context.Context, ms *mongolks.LinkedService, filter IFilter,
 	return nil
 }
 
-func ReplaceOne(ctx context.Context, ms *mongolks.LinkedService, filter IFilter, obj ICollection, ro ...options.Lister[options.ReplaceOptions]) *core.ApplicationError {
+func (s *Service) ReplaceOne[T ICollection](ctx context.Context, ms *mongolks.LinkedService, filter IFilter, obj ICollection, ro ...options.Lister[options.ReplaceOptions]) *core.ApplicationError {
 
 	filterB, errB := buildFilter(filter)
 	if errB != nil {
@@ -211,7 +201,7 @@ func ReplaceOne(ctx context.Context, ms *mongolks.LinkedService, filter IFilter,
 	return nil
 }
 
-func DeleteOne(ctx context.Context, ms *mongolks.LinkedService, filter IFilter, ro ...options.Lister[options.DeleteOneOptions]) *core.ApplicationError {
+func (s *Service) DeleteOne(ctx context.Context, ms *mongolks.LinkedService, filter IFilter, ro ...options.Lister[options.DeleteOneOptions]) *core.ApplicationError {
 
 	filterB, errB := buildFilter(filter)
 	if errB != nil {
@@ -331,8 +321,8 @@ func GetIds(ctx context.Context, ms *mongolks.LinkedService, filter string, coll
 	return ids, nil
 }
 
-func GetPageByFilter[T ICollection](ctx context.Context, ms *mongolks.LinkedService, filter IFilter, paging *page.Paging, opts ...options.Lister[options.FindOptions]) ([]T, *core.ApplicationError) {
-	collection := ms.GetCollection(filter.GetFilterCollectionName(ctx), "")
+func (s *Service) GetPageByFilter[T ICollection](ctx context.Context, filter IFilter, paging *page.Paging, opts ...options.Lister[options.FindOptions]) ([]T, *core.ApplicationError) {
+	collection := s.GetCollection(filter.GetFilterCollectionName(ctx), "")
 
 	filterB, errB := buildFilter(filter)
 	if errB != nil {
@@ -369,8 +359,8 @@ func GetPageByFilter[T ICollection](ctx context.Context, ms *mongolks.LinkedServ
 	return results, nil
 }
 
-func GetSequence(ctx context.Context, ms *mongolks.LinkedService, sequenceCollection, sequenceName string) (int, *core.ApplicationError) {
-	seqColl := ms.GetCollection(sequenceCollection, "")
+func (s *Service) GetSequence(ctx context.Context, sequenceCollection, sequenceName string) (int, *core.ApplicationError) {
+	seqColl := s.GetCollection(sequenceCollection, "")
 
 	// Define the filter and update for the findAndModify equivalent
 	filter := bson.M{"_id": sequenceName}
@@ -397,8 +387,8 @@ func GetSequence(ctx context.Context, ms *mongolks.LinkedService, sequenceCollec
 
 }
 
-func UpdateSingleRecord(ctx context.Context, ms *mongolks.LinkedService, collectionName string, filterR interface{}, updateR interface{}) error {
-	collectionRicorrenza := ms.GetCollection(collectionName, "")
+func (s *Service) UpdateSingleRecord(ctx context.Context, collectionName string, filterR interface{}, updateR interface{}) error {
+	collectionRicorrenza := s.GetCollection(collectionName, "")
 	resR, err := collectionRicorrenza.UpdateOne(ctx, filterR, updateR)
 	if err != nil {
 		log.Error().Err(err).Msg("Impossibile aggiornare")

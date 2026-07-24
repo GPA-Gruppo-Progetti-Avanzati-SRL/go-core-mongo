@@ -9,13 +9,18 @@ import (
 )
 
 type Core struct {
-	fx.In
+	core.In
 	AggregationFiles AggregationDirectory `optional:"true"`
 	AggregationPath  *AggregationsPath    `optional:"true"`
 }
+
+type Service struct {
+	mongolks.LinkedService
+}
+
 type AggregationsPath string
 
-func NewService(config *mongolks.Config, lc fx.Lifecycle, mc Core) *mongolks.LinkedService {
+func NewService(config *mongolks.Config, lc fx.Lifecycle, mc Core) *Service {
 
 	mls, _ := mongolks.NewLinkedServiceWithConfig(*config)
 
@@ -33,6 +38,6 @@ func NewService(config *mongolks.Config, lc fx.Lifecycle, mc Core) *mongolks.Lin
 		LoadAggregations(*mc.AggregationPath, embed.FS(mc.AggregationFiles))
 	}
 
-	return mls
+	return &Service{*mls}
 
 }
