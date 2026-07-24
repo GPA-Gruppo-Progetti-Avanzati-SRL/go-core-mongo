@@ -4,20 +4,24 @@ import (
 	"context"
 	"embed"
 
+	core "github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app"
 	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-mongo-common/mongolks"
 	"go.uber.org/fx"
 )
 
 type Core struct {
-	fx.In
+	core.In
 	AggregationFiles AggregationDirectory `optional:"true"`
 	AggregationPath  *AggregationsPath    `optional:"true"`
 }
 type AggregationsPath string
 
-func NewService(config *mongolks.Config, lc fx.Lifecycle, mc Core) *mongolks.LinkedService {
+func NewService(config *mongolks.Config, lc fx.Lifecycle, mc Core) (*mongolks.LinkedService, error) {
 
-	mls, _ := mongolks.NewLinkedServiceWithConfig(*config)
+	mls, err := mongolks.NewLinkedServiceWithConfig(*config)
+	if err != nil {
+		return nil, err
+	}
 
 	lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
@@ -33,6 +37,6 @@ func NewService(config *mongolks.Config, lc fx.Lifecycle, mc Core) *mongolks.Lin
 		LoadAggregations(*mc.AggregationPath, embed.FS(mc.AggregationFiles))
 	}
 
-	return mls
+	return mls, nil
 
 }
