@@ -7,6 +7,7 @@ package locker
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -25,6 +26,10 @@ const (
 	// another owner. The lock is a dispatch-dedup optimization (correctness
 	// lives in DB claiming), so a modest TTL with a single attempt is intended.
 	defaultTTL = 30 * time.Second
+
+	// defaultRetryDelay is the wait between acquisition attempts when the caller
+	// asked to block (Tries > 1) but did not set an explicit RetryDelay.
+	defaultRetryDelay = 100 * time.Millisecond
 )
 
 type mongoLocker struct {
@@ -38,14 +43,52 @@ func New(ls *mongolks.LinkedService) lock.Locker {
 	return &mongoLocker{coll: ls.Db().Collection(DefaultCollection), ttl: defaultTTL}
 }
 
-// Acquire takes the lock with an atomic upsert. If a non-expired document with
-// the same _id already exists the upsert raises a duplicate-key error, which we
-// map to ErrNotAcquired; an expired document is stolen in place.
-func (l *mongoLocker) Acquire(ctx context.Context, key string) (lock.Handle, error) {
+// Acquire honours the neutral AcquireOption set: without options it makes a
+// single atomic upsert attempt (dispatch-dedup); with Tries > 1 it retries on
+// contention (RetryDelay between attempts) until it succeeds, the attempts are
+// exhausted, or the context is done. Expiry overrides the lease TTL.
+func (l *mongoLocker) Acquire(ctx context.Context, key string, opts ...lock.AcquireOption) (lock.Handle, error) {
+	cfg := lock.ResolveAcquireConfig(opts...)
+	ttl := l.ttl
+	if cfg.Expiry > 0 {
+		ttl = cfg.Expiry
+	}
+	tries := cfg.Tries
+	if tries < 1 {
+		tries = 1
+	}
+	delay := cfg.RetryDelay
+	if delay <= 0 {
+		delay = defaultRetryDelay
+	}
+
+	for attempt := 0; ; attempt++ {
+		h, err := l.tryAcquire(ctx, key, ttl)
+		if err == nil {
+			return h, nil
+		}
+		if !errors.Is(err, lock.ErrNotAcquired) {
+			return nil, err
+		}
+		if attempt+1 >= tries {
+			return nil, lock.ErrNotAcquired
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(delay):
+		}
+	}
+}
+
+// tryAcquire takes the lock with an atomic upsert. If a non-expired document
+// with the same _id already exists the upsert raises a duplicate-key error,
+// which we map to ErrNotAcquired; an expired document is stolen in place.
+func (l *mongoLocker) tryAcquire(ctx context.Context, key string, ttl time.Duration) (lock.Handle, error) {
 	now := time.Now()
 	token := bson.NewObjectID().Hex()
 	filter := bson.M{"_id": key, "expiresAt": bson.M{"$lte": now}}
-	update := bson.M{"$set": bson.M{"owner": token, "expiresAt": now.Add(l.ttl)}}
+	update := bson.M{"$set": bson.M{"owner": token, "expiresAt": now.Add(ttl)}}
 
 	_, err := l.coll.UpdateOne(ctx, filter, update, options.UpdateOne().SetUpsert(true))
 	if err != nil {
@@ -54,13 +97,14 @@ func (l *mongoLocker) Acquire(ctx context.Context, key string) (lock.Handle, err
 		}
 		return nil, fmt.Errorf("mongo lock acquire %q: %w", key, err)
 	}
-	return &mongoHandle{coll: l.coll, key: key, token: token}, nil
+	return &mongoHandle{coll: l.coll, key: key, token: token, ttl: ttl}, nil
 }
 
 type mongoHandle struct {
 	coll  *mongo.Collection
 	key   string
 	token string
+	ttl   time.Duration
 }
 
 // Release deletes the lease only if this owner still holds it (a stolen/expired
@@ -68,6 +112,22 @@ type mongoHandle struct {
 func (h *mongoHandle) Release(ctx context.Context) error {
 	if _, err := h.coll.DeleteOne(ctx, bson.M{"_id": h.key, "owner": h.token}); err != nil {
 		return fmt.Errorf("mongo lock release %q: %w", h.key, err)
+	}
+	return nil
+}
+
+// Extend renews the lease TTL only if this owner still holds it. A lost lease
+// (stolen after expiry, or already released) matches nothing and is surfaced as
+// lock.ErrLockLost.
+func (h *mongoHandle) Extend(ctx context.Context) error {
+	res, err := h.coll.UpdateOne(ctx,
+		bson.M{"_id": h.key, "owner": h.token},
+		bson.M{"$set": bson.M{"expiresAt": time.Now().Add(h.ttl)}})
+	if err != nil {
+		return fmt.Errorf("mongo lock extend %q: %w", h.key, err)
+	}
+	if res.MatchedCount == 0 {
+		return fmt.Errorf("mongo lock extend %q: %w", h.key, lock.ErrLockLost)
 	}
 	return nil
 }
