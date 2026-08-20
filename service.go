@@ -4,6 +4,7 @@ import (
 	"context"
 	"embed"
 
+	core "github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app"
 	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-mongo-common/mongolks"
 	"go.uber.org/fx"
 )
@@ -22,7 +23,10 @@ type AggregationsPath string
 
 func NewService(config *mongolks.Config, lc fx.Lifecycle, mc Core) *Service {
 
-	mls, _ := mongolks.NewLinkedServiceWithConfig(*config)
+	mls, err := mongolks.NewLinkedServiceWithConfig(*config)
+	if err != nil {
+		return nil, err
+	}
 
 	lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
