@@ -34,7 +34,8 @@ func WithAggregations(dir fs.FS) Option {
 }
 
 // aggregationSource porta la FS delle aggregation dal Module al costruttore.
-// È supplita sempre, anche vuota, così newService non ha dipendenze optional.
+// È supplita solo se l'app passa WithAggregations: in newService è quindi una
+// dipendenza optional (assente ⇒ servizio senza aggregation).
 type aggregationSource struct {
 	dir fs.FS
 }
@@ -57,7 +58,9 @@ func Module(cfg *Config, opts ...Option) {
 
 	core.Module("mongo", func() {
 		core.Supply(cfg, o.modes...)
-		core.Supply(aggregationSource{dir: o.aggregations}, o.modes...)
+		if o.aggregations != nil {
+			core.Supply(aggregationSource{dir: o.aggregations}, o.modes...)
+		}
 		core.Provide(newService, o.modes...)
 	})
 }

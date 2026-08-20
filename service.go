@@ -3,6 +3,7 @@ package coremongo
 import (
 	"context"
 
+	core "github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app"
 	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-mongo-common/mongolks"
 	"go.uber.org/fx"
 )
@@ -14,21 +15,31 @@ type Service struct {
 	aggregations aggregations
 }
 
-func newService(config *Config, src aggregationSource, lc fx.Lifecycle) (*Service, error) {
+// serviceParams raccoglie le dipendenze di newService. aggregationSource è
+// optional perché il Module la supplisce solo quando l'app passa
+// WithAggregations: se manca, il servizio parte senza aggregation.
+type serviceParams struct {
+	core.In
+	Config       *Config
+	Lifecycle    fx.Lifecycle
+	Aggregations aggregationSource `optional:"true"`
+}
 
-	mls, err := mongolks.NewLinkedServiceWithConfig(*config)
+func newService(p serviceParams) (*Service, error) {
+
+	mls, err := mongolks.NewLinkedServiceWithConfig(*p.Config)
 	if err != nil {
 		return nil, err
 	}
 
 	// Prima della connessione: una cartella di aggregation malformata deve
 	// fermare l'avvio dell'app, non emergere alla prima query.
-	aggs, errAggr := loadAggregations(src.dir)
+	aggs, errAggr := loadAggregations(p.Aggregations.dir)
 	if errAggr != nil {
 		return nil, errAggr
 	}
 
-	lc.Append(fx.Hook{
+	p.Lifecycle.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
 			return mls.Connect(ctx)
 
