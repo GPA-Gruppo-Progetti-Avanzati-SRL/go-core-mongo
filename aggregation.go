@@ -2,12 +2,11 @@ package coremongo
 
 import (
 	"context"
-	"embed"
 	"errors"
 	"fmt"
-	"path/filepath"
+	"io/fs"
+	"path"
 
-	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-mongo-common/mongolks"
 	"github.com/rs/zerolog"
 
 	"github.com/rs/zerolog/log"
@@ -19,9 +18,6 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
-var Aggregations map[string]*Aggregation
-
-type AggregationDirectory embed.FS
 type Aggregation struct {
 	Name       string   `mapstructure:"name" json:"name" yaml:"name"`
 	Collection string   `mapstructure:"collection" json:"collection" yaml:"collection"`
@@ -33,10 +29,14 @@ type Stage struct {
 	Args     map[string]any `mapstructure:"args" json:"args" yaml:"args"`
 }
 
-var stageGenerators map[string]GenerateStage
+// aggregations è il registry delle pipeline di un Service, indicizzato per il
+// campo `name` dei file YAML. È per-istanza: due Service non si sovrascrivono.
+type aggregations map[string]*Aggregation
+
+var stageGenerators map[string]generateStage
 
 func init() {
-	stageGenerators = map[string]GenerateStage{
+	stageGenerators = map[string]generateStage{
 
 		"$skip":      simpleParams,
 		"$limit":     simpleParams,
@@ -48,31 +48,60 @@ func init() {
 		"$unionWith": unionWith,
 	}
 }
-func LoadAggregations(aggregationFolder AggregationsPath, aggregationFiles embed.FS) {
-	Aggregations = make(map[string]*Aggregation)
-	dir, err := aggregationFiles.ReadDir(string(aggregationFolder))
-	if err != nil {
-		log.Fatal().Err(err).Msg("aggregationFolder")
+
+// loadAggregations percorre dir in ricorsione e carica come pipeline ogni file
+// .yaml/.yml trovato, a qualsiasi profondità: il nome della cartella non serve,
+// quindi l'app passa la sua embed.FS così com'è.
+//
+// dir nil significa "nessuna aggregation": l'app non ha passato WithAggregations.
+// Ogni altra anomalia è un errore, così l'app non parte con pipeline mancanti.
+func loadAggregations(dir fs.FS) (aggregations, error) {
+	if dir == nil {
+		return nil, nil
 	}
-	for _, file := range dir {
-		log.Info().Msgf("Loading Aggregation %s", file.Name())
-		yamlFile, errRead := aggregationFiles.ReadFile(filepath.Join(string(aggregationFolder), file.Name()))
+
+	regs := make(aggregations)
+	err := fs.WalkDir(dir, ".", func(p string, d fs.DirEntry, errWalk error) error {
+		if errWalk != nil {
+			return errWalk
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if ext := path.Ext(p); ext != ".yaml" && ext != ".yml" {
+			return nil
+		}
+
+		content, errRead := fs.ReadFile(dir, p)
 		if errRead != nil {
-			log.Error().Err(errRead).Msg("aggregation read" + file.Name())
-			continue
+			return fmt.Errorf("aggregation %s: %w", p, errRead)
 		}
 		a := &Aggregation{}
-		errUm := yaml.Unmarshal(yamlFile, &a)
-		if errUm != nil {
-			log.Error().Err(errUm).Msg("aggregation Unmarshal " + file.Name())
-			continue
+		if errUm := yaml.Unmarshal(content, a); errUm != nil {
+			return fmt.Errorf("aggregation %s: %w", p, errUm)
 		}
-		Aggregations[a.Name] = a
-		log.Info().Msgf("Aggregation loaded %s", a.Name)
+		if a.Name == "" {
+			return fmt.Errorf("aggregation %s: campo name mancante", p)
+		}
+		if _, dup := regs[a.Name]; dup {
+			return fmt.Errorf("aggregation %s: nome %q già definito in un altro file", p, a.Name)
+		}
+
+		regs[a.Name] = a
+		log.Info().Str("aggregation", a.Name).Str("file", p).Msg("aggregation loaded")
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
+	if len(regs) == 0 {
+		return nil, errors.New("aggregations: nessun file .yaml/.yml nella FS passata a WithAggregations")
+	}
+	return regs, nil
 }
 
-func GenerateAggregation(a *Aggregation, params map[string]any) (mongo.Pipeline, *core.ApplicationError) {
+// pipeline genera la mongo.Pipeline di a, risolvendo i parametri per chiave di stage.
+func (r aggregations) pipeline(a *Aggregation, params map[string]any) (mongo.Pipeline, *core.ApplicationError) {
 
 	mp := make(mongo.Pipeline, 0)
 	for _, stage := range a.Stages {
@@ -82,7 +111,7 @@ func GenerateAggregation(a *Aggregation, params map[string]any) (mongo.Pipeline,
 		if !ok {
 			return nil, core.TechnicalErrorWithCodeAndMessage("UNKNOWN Operator", "operator "+stage.Operator+" is not supported")
 		}
-		s, errG := gs(stage.Operator, stage.Args, fparams)
+		s, errG := gs(r, stage.Operator, stage.Args, fparams)
 		if errG != nil {
 			return nil, errG
 		}
@@ -93,15 +122,17 @@ func GenerateAggregation(a *Aggregation, params map[string]any) (mongo.Pipeline,
 
 }
 
-type GenerateStage func(function string, args map[string]interface{}, params any) (bson.D, *core.ApplicationError)
+// generateStage genera un singolo stage. Il registry serve solo a unionWith, che
+// compone per nome un'altra pipeline dello stesso Service.
+type generateStage func(r aggregations, function string, args map[string]interface{}, params any) (bson.D, *core.ApplicationError)
 
-func unionWith(function string, args map[string]interface{}, params any) (bson.D, *core.ApplicationError) {
+func unionWith(r aggregations, function string, args map[string]interface{}, params any) (bson.D, *core.ApplicationError) {
 
 	pipelineName, okP := args["pipeline"].(string)
 	if !okP {
 		return nil, core.TechnicalErrorWithCodeAndMessage("", fmt.Sprintf("pipeline %s not found", pipelineName))
 	}
-	a, okA := Aggregations[pipelineName]
+	a, okA := r[pipelineName]
 	if !okA {
 		return nil, core.TechnicalErrorWithCodeAndMessage("", fmt.Sprintf("aggregation %s not found", pipelineName))
 	}
@@ -114,7 +145,7 @@ func unionWith(function string, args map[string]interface{}, params any) (bson.D
 		paramsCast = resultCast
 	}
 
-	mp, err := GenerateAggregation(a, paramsCast)
+	mp, err := r.pipeline(a, paramsCast)
 
 	if err != nil {
 		return nil, err
@@ -127,16 +158,16 @@ func unionWith(function string, args map[string]interface{}, params any) (bson.D
 
 }
 
-func simpleParams(function string, args map[string]interface{}, params any) (bson.D, *core.ApplicationError) {
+func simpleParams(r aggregations, function string, args map[string]interface{}, params any) (bson.D, *core.ApplicationError) {
 	return bson.D{{Key: function, Value: params}}, nil
 }
 
-func simpleArgs(function string, args map[string]interface{}, params any) (bson.D, *core.ApplicationError) {
+func simpleArgs(r aggregations, function string, args map[string]interface{}, params any) (bson.D, *core.ApplicationError) {
 	return bson.D{{Key: function, Value: args}}, nil
 }
-func match(function string, args map[string]interface{}, params any) (bson.D, *core.ApplicationError) {
+func match(r aggregations, function string, args map[string]interface{}, params any) (bson.D, *core.ApplicationError) {
 	if params == nil {
-		return simpleArgs(function, args, params)
+		return simpleArgs(r, function, args, params)
 	}
 	p, ok := params.(IFilter)
 	if !ok {
@@ -151,7 +182,7 @@ func match(function string, args map[string]interface{}, params any) (bson.D, *c
 	return bson.D{{Key: function, Value: filterM}}, nil
 }
 
-func sort(function string, args map[string]interface{}, params any) (bson.D, *core.ApplicationError) {
+func sort(r aggregations, function string, args map[string]interface{}, params any) (bson.D, *core.ApplicationError) {
 	sortBson := bson.D{}
 	sortEl, ok := args["order"].([]any)
 	if !ok {
@@ -185,38 +216,12 @@ func sort(function string, args map[string]interface{}, params any) (bson.D, *co
 	return bson.D{{Key: function, Value: sortBson}}, nil
 }
 
-/*
-	func ExecuteAggregation(ctx context.Context,ls *mongolks.LinkedService,  name string, params map[string]any, opts ...*options.AggregateOptions) (*mongo.Cursor, *core.ApplicationError) {
-		aggregation, ok := Aggregations[name]
-		if !ok {
-			return nil, core.BusinessErrorWithCodeAndMessage("NOT-FOUND", fmt.Sprintf("aggregation '%s' not found", name))
-		}
-		mp, err := GenerateAggregation(aggregation, params)
-
-		if err != nil {
-			return nil, err
-		}
-		if zerolog.GlobalLevel() < zerolog.DebugLevel {
-			value := PipelineToJson(mp)
-			log.Trace().Msg(value)
-		}
-
-		cur, errAgg := ls.GetCollection(aggregation.Collection,"").Aggregate(ctx, mp, opts...)
-		if errAgg != nil {
-			if errors.Is(err, mongo.ErrNoDocuments) {
-				return nil, core.NotFoundError()
-			}
-			return nil, core.TechnicalErrorWithError(errAgg)
-		}
-		return cur, nil
-	}
-*/
-func ExecuteAggregation[T any](ctx context.Context, ls *mongolks.LinkedService, name string, params map[string]any, opts ...options.Lister[options.AggregateOptions]) ([]*T, *core.ApplicationError) {
-	aggregation, ok := Aggregations[name]
+func (s *Service) ExecuteAggregation[T any](ctx context.Context, name string, params map[string]any, opts ...options.Lister[options.AggregateOptions]) ([]*T, *core.ApplicationError) {
+	aggregation, ok := s.aggregations[name]
 	if !ok {
 		return nil, core.BusinessErrorWithCodeAndMessage("NOT-FOUND", fmt.Sprintf("aggregation '%s' not found", name))
 	}
-	mp, err := GenerateAggregation(aggregation, params)
+	mp, err := s.aggregations.pipeline(aggregation, params)
 
 	if err != nil {
 		return nil, err
@@ -226,7 +231,7 @@ func ExecuteAggregation[T any](ctx context.Context, ls *mongolks.LinkedService, 
 		log.Trace().Str("pipeline", value).Msg("aggregation pipeline")
 	}
 
-	cur, errAgg := ls.GetCollection(aggregation.Collection, "").Aggregate(ctx, mp, opts...)
+	cur, errAgg := s.GetCollection(aggregation.Collection, "").Aggregate(ctx, mp, opts...)
 	if errAgg != nil {
 		if errors.Is(errAgg, mongo.ErrNoDocuments) {
 			return nil, core.NotFoundError()
@@ -248,7 +253,7 @@ func ExecuteAggregation[T any](ctx context.Context, ls *mongolks.LinkedService, 
 }
 func PipelineToJson(pipeline mongo.Pipeline) string {
 	// Ensure we never return an empty string so logs are not blank
-	if pipeline == nil || len(pipeline) == 0 {
+	if len(pipeline) == 0 {
 		return "[]"
 	}
 	// First attempt: wrap as bson.A to avoid top-level array writer issues

@@ -8,7 +8,6 @@ import (
 
 	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app"
 	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app/page"
-	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-mongo-common/mongolks"
 	"github.com/rs/zerolog/log"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -128,29 +127,34 @@ func (s *Service) InsertOne[T ICollection](ctx context.Context, obj T, opts ...o
 	return res.InsertedID, nil
 }
 
-func (s *Service) InsertMany[T ICollection](ctx context.Context, ms *mongolks.LinkedService, list []T, opts ...options.Lister[options.InsertManyOptions]) *core.ApplicationError {
-	var obj T
-	collection := s.GetCollection(obj.GetCollectionName(ctx), "")
+func (s *Service) InsertMany[T ICollection](ctx context.Context, list []T, opts ...options.Lister[options.InsertManyOptions]) *core.ApplicationError {
+	if len(list) == 0 {
+		return nil
+	}
+	// Il nome della collection viene dal primo elemento, non da uno zero value di T:
+	// con T puntatore o interfaccia `var obj T` è nil e GetCollectionName va in panic.
+	name := list[0].GetCollectionName(ctx)
+	collection := s.GetCollection(name, "")
 
 	res, errIns := collection.InsertMany(ctx, list, opts...)
 	if errIns != nil {
 		return core.TechnicalErrorWithError(errIns)
 	}
 	if len(res.InsertedIDs) != len(list) {
-		message := fmt.Sprintf("Mismatch insert %s requested %d vs inserted %d ", collection, len(list), len(res.InsertedIDs))
+		message := fmt.Sprintf("Mismatch insert %s requested %d vs inserted %d ", name, len(list), len(res.InsertedIDs))
 		log.Error().Msg(message)
 		return core.TechnicalErrorWithCodeAndMessage("INSERT-MISMATCH", message)
 	}
 	return nil
 }
 
-func UpdateOne(ctx context.Context, ms *mongolks.LinkedService, filter IFilter, update bson.M, opts ...options.Lister[options.UpdateOneOptions]) *core.ApplicationError {
+func (s *Service) UpdateOne(ctx context.Context, filter IFilter, update bson.M, opts ...options.Lister[options.UpdateOneOptions]) *core.ApplicationError {
 
 	filterB, errB := buildFilter(filter)
 	if errB != nil {
 		return core.TechnicalErrorWithError(errB)
 	}
-	collectionNotifiche := ms.GetCollection(filter.GetFilterCollectionName(ctx), "")
+	collectionNotifiche := s.GetCollection(filter.GetFilterCollectionName(ctx), "")
 	res, err := collectionNotifiche.UpdateOne(ctx, filterB, update, opts...)
 	if err != nil {
 		log.Error().Err(err).Msgf("Impossibile aggiornare %s %s", filter.GetFilterCollectionName(ctx), err.Error())
@@ -163,13 +167,13 @@ func UpdateOne(ctx context.Context, ms *mongolks.LinkedService, filter IFilter, 
 	return nil
 }
 
-func UpdateMany(ctx context.Context, ms *mongolks.LinkedService, filter IFilter, update bson.M, len int) *core.ApplicationError {
+func (s *Service) UpdateMany(ctx context.Context, filter IFilter, update bson.M, len int) *core.ApplicationError {
 
 	filterB, errB := buildFilter(filter)
 	if errB != nil {
 		return core.TechnicalErrorWithError(errB)
 	}
-	collectionNotifiche := ms.GetCollection(filter.GetFilterCollectionName(ctx), "")
+	collectionNotifiche := s.GetCollection(filter.GetFilterCollectionName(ctx), "")
 	res, err := collectionNotifiche.UpdateMany(ctx, filterB, update)
 	if err != nil {
 		log.Error().Err(err).Msgf("Impossibile aggiornare %s %s", filter.GetFilterCollectionName(ctx), err.Error())
@@ -182,13 +186,13 @@ func UpdateMany(ctx context.Context, ms *mongolks.LinkedService, filter IFilter,
 	return nil
 }
 
-func (s *Service) ReplaceOne[T ICollection](ctx context.Context, ms *mongolks.LinkedService, filter IFilter, obj ICollection, ro ...options.Lister[options.ReplaceOptions]) *core.ApplicationError {
+func (s *Service) ReplaceOne[T ICollection](ctx context.Context, filter IFilter, obj ICollection, ro ...options.Lister[options.ReplaceOptions]) *core.ApplicationError {
 
 	filterB, errB := buildFilter(filter)
 	if errB != nil {
 		return core.TechnicalErrorWithError(errB)
 	}
-	collectionNotifiche := ms.GetCollection(obj.GetCollectionName(ctx), "")
+	collectionNotifiche := s.GetCollection(obj.GetCollectionName(ctx), "")
 	res, err := collectionNotifiche.ReplaceOne(ctx, filterB, obj, ro...)
 	if err != nil {
 		log.Error().Err(err).Msgf("Impossibile replace %s %s", obj.GetCollectionName(ctx), err.Error())
@@ -201,13 +205,13 @@ func (s *Service) ReplaceOne[T ICollection](ctx context.Context, ms *mongolks.Li
 	return nil
 }
 
-func (s *Service) DeleteOne(ctx context.Context, ms *mongolks.LinkedService, filter IFilter, ro ...options.Lister[options.DeleteOneOptions]) *core.ApplicationError {
+func (s *Service) DeleteOne(ctx context.Context, filter IFilter, ro ...options.Lister[options.DeleteOneOptions]) *core.ApplicationError {
 
 	filterB, errB := buildFilter(filter)
 	if errB != nil {
 		return core.TechnicalErrorWithError(errB)
 	}
-	collectionNotifiche := ms.GetCollection(filter.GetFilterCollectionName(ctx), "")
+	collectionNotifiche := s.GetCollection(filter.GetFilterCollectionName(ctx), "")
 	res, err := collectionNotifiche.DeleteOne(ctx, filterB, ro...)
 	if err != nil {
 		log.Error().Err(err).Msgf("Impossibile rimuovere %s %s", filter.GetFilterCollectionName(ctx), err.Error())
@@ -224,13 +228,13 @@ func (s *Service) DeleteOne(ctx context.Context, ms *mongolks.LinkedService, fil
 	return nil
 }
 
-func DeleteMany(ctx context.Context, ms *mongolks.LinkedService, filter IFilter, ro ...options.Lister[options.DeleteManyOptions]) *core.ApplicationError {
+func (s *Service) DeleteMany(ctx context.Context, filter IFilter, ro ...options.Lister[options.DeleteManyOptions]) *core.ApplicationError {
 
 	filterB, errB := buildFilter(filter)
 	if errB != nil {
 		return core.TechnicalErrorWithError(errB)
 	}
-	collectionNotifiche := ms.GetCollection(filter.GetFilterCollectionName(ctx), "")
+	collectionNotifiche := s.GetCollection(filter.GetFilterCollectionName(ctx), "")
 	_, err := collectionNotifiche.DeleteMany(ctx, filterB, ro...)
 	if err != nil {
 		log.Error().Err(err).Msgf("Impossibile rimuovere %s %s", filter.GetFilterCollectionName(ctx), err.Error())
@@ -240,11 +244,11 @@ func DeleteMany(ctx context.Context, ms *mongolks.LinkedService, filter IFilter,
 	return nil
 }
 
-func ExecTransaction(ctx context.Context, ms *mongolks.LinkedService, transaction func(ctx context.Context) error) *core.ApplicationError {
+func (s *Service) ExecTransaction(ctx context.Context, transaction func(ctx context.Context) error) *core.ApplicationError {
 	wc := writeconcern.Majority()
 	txnOptions := options.Transaction().SetWriteConcern(wc)
 	// Starts a session on the client
-	session, err := ms.Db().Client().StartSession()
+	session, err := s.Db().Client().StartSession()
 	if err != nil {
 		return core.TechnicalErrorWithError(err)
 	}
@@ -274,7 +278,7 @@ func ExecTransaction(ctx context.Context, ms *mongolks.LinkedService, transactio
 	return nil
 }
 
-func GetIds(ctx context.Context, ms *mongolks.LinkedService, filter string, collectionName string, sort string, limit int) ([]string, *core.ApplicationError) {
+func (s *Service) GetIds(ctx context.Context, filter string, collectionName string, sort string, limit int) ([]string, *core.ApplicationError) {
 	var filterMap map[string]interface{}
 	if err := json.Unmarshal([]byte(filter), &filterMap); err != nil {
 		log.Error().Err(err).Msg("error unmarshal filter")
@@ -300,7 +304,7 @@ func GetIds(ctx context.Context, ms *mongolks.LinkedService, filter string, coll
 		findOptions = findOptions.SetSort(sortMap)
 	}
 
-	cursor, err := ms.GetCollection(collectionName, "").Find(ctx, filterM, findOptions)
+	cursor, err := s.GetCollection(collectionName, "").Find(ctx, filterM, findOptions)
 	if err != nil {
 		errMsg := fmt.Errorf("error Mongo: %s", err.Error())
 		return nil, core.TechnicalErrorWithError(errMsg)

@@ -6,8 +6,8 @@ import (
 )
 
 // Module registers the MongoDB-backed lock.Locker in the fx application. It is
-// modes-only: it consumes the *mongolks.LinkedService provided by the app
-// (coremongo.NewService), so no extra config is required.
+// modes-only: it consumes the *coremongo.Service provided by coremongo.Module,
+// so no extra config is required.
 //
 //	batch.Module(&cfg.Batch, batch.WithLocker(locker.Module), ...)
 func Module(modes ...string) {

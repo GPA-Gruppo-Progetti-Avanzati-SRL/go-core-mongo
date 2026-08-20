@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app/lock"
-	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-mongo-common/mongolks"
+	coremongo "github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-mongo"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
@@ -37,10 +37,10 @@ type mongoLocker struct {
 	ttl  time.Duration
 }
 
-// New returns a MongoDB-backed lock.Locker over the given linked service, using
+// New returns a MongoDB-backed lock.Locker over the given Mongo service, using
 // the raw database so the lock collection needs no prior configuration.
-func New(ls *mongolks.LinkedService) lock.Locker {
-	return &mongoLocker{coll: ls.Db().Collection(DefaultCollection), ttl: defaultTTL}
+func New(s *coremongo.Service) lock.Locker {
+	return &mongoLocker{coll: s.Db().Collection(DefaultCollection), ttl: defaultTTL}
 }
 
 // Acquire honours the neutral AcquireOption set: without options it makes a

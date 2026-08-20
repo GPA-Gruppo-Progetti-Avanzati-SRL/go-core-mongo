@@ -10,7 +10,6 @@ import (
 	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app"
 	authcore "github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app/authorization"
 	coremongo "github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-mongo"
-	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-mongo-common/mongolks"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -23,7 +22,7 @@ type AuthorizationLut struct {
 	updating   atomic.Bool
 	lastUpdate atomic.Value
 	minRefresh time.Duration
-	ls         *mongolks.LinkedService
+	ls         *coremongo.Service
 
 	roleApis     sync.Map // roleId -> map[string]ApiNode
 	roleUis      sync.Map // roleId -> map[string]UINode
@@ -43,7 +42,7 @@ type roleFunctionsAggRes struct {
 	ActionApi []ActApi  `bson:"actsApi" json:"actsApi"`
 }
 
-func NewAuthorizationLut(lc fx.Lifecycle, ls *mongolks.LinkedService) *AuthorizationLut {
+func NewAuthorizationLut(lc fx.Lifecycle, ls *coremongo.Service) *AuthorizationLut {
 
 	refresh := 10 * time.Minute
 

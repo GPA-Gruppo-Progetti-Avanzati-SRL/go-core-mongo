@@ -1,6 +1,6 @@
 module github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-mongo
 
-go 1.27-rc2
+go 1.27
 
 require (
 	github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app v0.0.28
@@ -12,13 +12,8 @@ require (
 )
 
 require (
-	github.com/KimMachineGun/automemlimit v0.7.5 // indirect
-	github.com/pbnjay/memory v0.0.0-20210728143218-7b4eea64cf58 // indirect
-	gopkg.in/yaml.v2 v2.4.0 // indirect
-)
-
-require (
 	github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-common v0.1.95 // indirect
+	github.com/KimMachineGun/automemlimit v0.7.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -41,6 +36,7 @@ require (
 	github.com/mattn/go-colorable v0.1.15 // indirect
 	github.com/mattn/go-isatty v0.0.23 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
+	github.com/pbnjay/memory v0.0.0-20210728143218-7b4eea64cf58 // indirect
 	github.com/pelletier/go-toml/v2 v2.4.3 // indirect
 	github.com/prometheus/client_golang v1.24.1 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
@@ -100,4 +96,5 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260803160001-6ac0973c030d // indirect
 	google.golang.org/grpc v1.83.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
+	gopkg.in/yaml.v2 v2.4.0 // indirect
 )

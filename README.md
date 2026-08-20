@@ -10,6 +10,57 @@ La libreria ```go-core-mongo``` è una libreria per il linguaggio di programmazi
 
 Di default permette all'applicazione di esporre le metriche del database.
 
+## Wiring
+
+`coremongo.Module` è l'unico entry-point: supplisce la `Config` e fornisce
+`*coremongo.Service`, l'unico handle Mongo dell'applicazione (connessione, CRUD
+generici, aggregation). Lo consumano direttamente anche `locker`, `authorization` e
+`go-core-batch/store/mongostore`: la `mongolks.LinkedService` resta un dettaglio
+interno e non va iniettata in giro.
+
+```go
+package services
+
+import coremongo "github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-mongo"
+
+type Config struct {
+    Mongo coremongo.Config `yaml:"mongo" mapstructure:"mongo" json:"mongo"`
+    // ...
+}
+
+func ProvideServices(cfg *Config) {
+    coremongo.Module(&cfg.Mongo)
+}
+```
+
+`coremongo.Config` è un alias di `mongolks.Config`: l'app non importa
+`tpm-mongo-common`. Il costruttore non è esportato, quindi non serve (né si può fare)
+`core.Supply`/`core.Provide` a mano.
+
+| Opzione | Effetto |
+|---------|---------|
+| `WithModes(modes...)` | registra solo quando `core.Mode` è tra i modes indicati; senza opzione registra sempre |
+| `WithAggregations(dir)` | carica le pipeline di aggregation dalla FS indicata (vedi sotto) |
+
+```yaml
+config:
+  services:
+    mongo:
+      name: default
+      host: "mongodb+srv://<host>/?tls=false"
+      db-name: mydb
+      user: ${MONGODB_USR_ENV}
+      pwd:  ${MONGODB_PWD_ENV}
+      collections:
+        - id: acl          # obbligatoria per l'autorizzazione
+          name: acl
+        - id: people       # una entry per ogni collection usata
+          name: people
+```
+
+Ogni collection usata dall'app va dichiarata in `collections`: `GetCollection` risolve
+per `id` e ritorna `nil` per un id non dichiarato.
+
 ## Funzionalità principali
 
 ### Filter Builder
@@ -63,94 +114,96 @@ if err != nil {
 // }
 ```
 
+
 ### Aggregation Pipeline generator
 
-le pipeline venegono specificate nel file di configurazione che utilizza l'app che importa la ```go-core-mongo```
+Le pipeline sono file YAML embeddati nel binario, **uno per pipeline**. Non stanno nel
+file di configurazione: il loro percorso è un fatto di compile-time, non di ambiente.
 
-#### Struttura delle Aggregazioni
-
-Le aggregazioni sono definite tramite la struct Aggregation, che include:
-
-- **Name**: Il nome dell'aggregazione.
-- **Collection**: La collezione MongoDB su cui eseguire l'aggregazione.
-- **Stages**: Una lista di fasi (Stage) che compongono la pipeline di aggregazione.
-
-Ogni Stage include:
-
-- **Key**: Una chiave per identificare i parametri della fase.
-- **Operator**: L'operatore MongoDB da utilizzare (es. ```$match```, ```$project```).
-- **Args**: Argomenti specifici per l'operatore.
-
-#### Esecuzioni dell'aggregazione
-
-La funzione ```ExecuteAggregation``` esegue una pipeline di aggregazione su una collezione MongoDB. Questa funzione prende il nome di un'aggregazione predefinita, i parametri per la pipeline e le opzioni di aggregazione, e restituisce un cursore MongoDB con i risultati dell'aggregazione.
-
-*Parametri*:
-
-- **ctx**: Il contesto per l'esecuzione della query.
-- **name**: Il nome dell'aggregazione predefinita.
-- **params**: Una mappa di parametri da utilizzare nella pipeline di aggregazione.
-- **opts**: Opzioni aggiuntive per l'aggregazione.
-
-*Ritorna*:
-
-- ```mongo.Cursor```: Un cursore MongoDB con i risultati dell'aggregazione.
-- ```core.ApplicationError```: Un errore applicativo in caso di fallimento.
-
-Esempio:
+#### Registrazione
 
 ```go
-ctx := context.TODO()
-name := "exampleAggregation"
-params := map[string]any{
-    "stage1": MyFilter{Field: "value"},
-}
-opts := options.Aggregate()
+//go:embed aggregations
+var aggregationFiles embed.FS
 
-cursor, err := service.ExecuteAggregation(ctx, name, params, opts)
-if err != nil {
-    log.Fatal(err)
-}
-
-for cursor.Next(ctx) {
-    var result bson.M
-    if err := cursor.Decode(&result); err != nil {
-        log.Fatal(err)
-    }
-    fmt.Println(result)
-}
+coremongo.Module(&cfg.Mongo, coremongo.WithAggregations(aggregationFiles))
 ```
 
-*Dettagli di implementazione*
+Si passa la variabile del `//go:embed` così com'è (`embed.FS` implementa `fs.FS`): la
+libreria percorre la FS in ricorsione e carica ogni file `.yaml`/`.yml` a qualsiasi
+profondità, ignorando gli altri. Il nome della cartella non compare da nessuna parte.
 
-1. La funzione cerca l'aggregazione predefinita nel mappa Aggregations utilizzando il nome fornito.
-2. Se l'aggregazione non viene trovata, restituisce un errore di tipo BusinessError.
-3. Genera la pipeline di aggregazione chiamando la funzione GenerateAggregation con l'aggregazione e i parametri forniti.
-4. Converte la pipeline in formato JSON per il logging.
-5. Esegue l'aggregazione sulla collezione specificata utilizzando il metodo Aggregate di MongoDB.
-6. Gestisce eventuali errori, inclusi i casi in cui non vengono trovati documenti (mongo.ErrNoDocuments).
-7. Restituisce il cursore con i risultati dell'aggregazione.
+Ogni pipeline è indicizzata per il suo campo `name` — il nome del file non conta — in un
+registry che appartiene al `Service`: due Service non si sovrascrivono le pipeline.
 
-Questa funzione permette di eseguire aggregazioni complesse in modo dinamico, basandosi su configurazioni predefinite e parametri forniti a runtime.
+Il caricamento è fail-fast: FS senza file YAML, YAML non parsabile, `name` mancante o
+`name` duplicato fermano l'avvio dell'applicazione invece di emergere alla prima query.
 
-#### Configurazione delle aggregazioni
+#### Struttura delle aggregazioni
 
-Le aggregazioni vengono definite e configurate tramite file di configurazione (es. JSON, YAML) e caricate nell'applicazione. Questo permette di definire e modificare le pipeline di aggregazione senza dover cambiare il codice sorgente.
+Ogni file descrive una `Aggregation`:
 
-Esempio di configurazione YAML:
+- **name**: il nome con cui la pipeline viene eseguita (chiave del registry).
+- **collection**: la collection MongoDB di partenza.
+- **stages**: la lista di `Stage` che compone la pipeline.
+
+Ogni `Stage`:
+
+- **operator**: l'operatore MongoDB. Supportati: `$match`, `$project`, `$group`,
+  `$addFields`, `$sort`, `$skip`, `$limit`, `$unionWith`.
+- **args**: argomenti statici, scritti nel file.
+- **key**: chiave con cui lo stage pesca il proprio valore dai `params` passati a
+  runtime. `key` e `args` sono alternativi.
 
 ```yaml
-aggregations:
-  - name: exampleAggregation
-    collection: exampleCollection
-    stages:
-      - operator: $match
-        key: stage1
-      - operator: $project
-        args:
-          field: 1
-      - operator: $skip
-        key: skip
-      - operator: $limit
-        key: limit
+name: example
+collection: example
+stages:
+  - operator: $match
+    key: match
+  - operator: $skip
+    key: skip
+  - operator: $limit
+    key: limit
 ```
+
+`$match` con `key` vuole un `IFilter` nei params, che viene passato al filter builder;
+senza params usa `args` così com'è. `$sort` prende l'ordinamento da `args.order`:
+
+```yaml
+  - operator: $sort
+    args:
+      order:
+        - field: createTime
+          verse: desc
+```
+
+`$unionWith` compone per nome un'altra pipeline dello stesso registry:
+
+```yaml
+  - operator: $unionWith
+    args:
+      pipeline: altra-pipeline
+```
+
+#### Esecuzione
+
+`ExecuteAggregation` è un metodo generico del `Service` e decodifica i risultati in
+`[]*T`:
+
+```go
+items, err := d.Service.ExecuteAggregation[models.Sottoscrizione](ctx, "example",
+    map[string]any{
+        "match": MyFilter{Field: "value"},
+        "skip":  0,
+        "limit": 50,
+    },
+    options.Aggregate().SetAllowDiskUse(true), // opts variadic, opzionali
+)
+if err != nil {
+    return nil, err
+}
+```
+
+Errori: `NOT-FOUND` (business) se il nome non è nel registry; `MONGO-EXECAGGR` e
+`MONGO-EXECAGGR-CUR` (tecnici) su errore del driver o durante la lettura del cursore.
