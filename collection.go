@@ -279,7 +279,7 @@ func (s *Service) ExecTransaction(ctx context.Context, transaction func(ctx cont
 }
 
 func (s *Service) GetIds(ctx context.Context, filter string, collectionName string, sort string, limit int) ([]string, *core.ApplicationError) {
-	var filterMap map[string]interface{}
+	var filterMap map[string]any
 	if err := json.Unmarshal([]byte(filter), &filterMap); err != nil {
 		log.Error().Err(err).Msg("error unmarshal filter")
 		return nil, core.TechnicalErrorWithCodeAndMessage("PROPERTIES", "error unmarshal filter")
@@ -391,7 +391,7 @@ func (s *Service) GetSequence(ctx context.Context, sequenceCollection, sequenceN
 
 }
 
-func (s *Service) UpdateSingleRecord(ctx context.Context, collectionName string, filterR interface{}, updateR interface{}) error {
+func (s *Service) UpdateSingleRecord(ctx context.Context, collectionName string, filterR any, updateR any) error {
 	collectionRicorrenza := s.GetCollection(collectionName, "")
 	resR, err := collectionRicorrenza.UpdateOne(ctx, filterR, updateR)
 	if err != nil {

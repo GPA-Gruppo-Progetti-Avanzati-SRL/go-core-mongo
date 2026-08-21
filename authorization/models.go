@@ -40,7 +40,7 @@ type ApiNode struct {
 	EntityType  string      `bson:"_et" json:"et"` // "CAPABILITY"
 	Description string      `bson:"description,omitempty" json:"description,omitempty"`
 	Category    string      `bson:"category,omitempty" json:"category,omitempty"` // "api"
-	Api         ApiNodeSpec `bson:"api,omitempty" json:"api,omitempty"`
+	Api         ApiNodeSpec `bson:"api,omitempty" json:"api"`
 }
 
 // ApiNodeSpec raccoglie le specifiche di un'API capability.

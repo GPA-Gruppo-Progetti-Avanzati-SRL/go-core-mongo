@@ -39,7 +39,7 @@ func TestAggregationFromFiles(t *testing.T) {
 			got := PipelineToJson(pipeline)
 			t.Logf("pipeline generata:\n%s", got)
 
-			var gotObj, wantObj interface{}
+			var gotObj, wantObj any
 			if errUm := json.Unmarshal([]byte(got), &gotObj); errUm != nil {
 				t.Fatalf("unmarshal pipeline generata: %v\njson: %s", errUm, got)
 			}

@@ -290,7 +290,7 @@ func (l *AuthorizationLut) refresh() *core.ApplicationError {
 // Usato dal gateway al boot per registrare le route /{cid}/*, indipendentemente dai ruoli utente.
 func (l *AuthorizationLut) AllContextIDs() []string {
 	var ids []string
-	l.contexts.Range(func(key, _ interface{}) bool {
+	l.contexts.Range(func(key, _ any) bool {
 		ids = append(ids, key.(string))
 		return true
 	})
@@ -532,7 +532,7 @@ func (l *AuthorizationLut) GetApps(roles []string, contextID string) []*authcore
 	cid := strings.ToLower(contextID)
 	out := make([]*authcore.App, 0)
 
-	l.apps.Range(func(_, val interface{}) bool {
+	l.apps.Range(func(_, val any) bool {
 		a := val.(App)
 		isHome := a.BasePath == "/"
 
@@ -583,8 +583,7 @@ func matchGlob(pattern, path string) bool {
 		return true
 	}
 	// /** alla fine: prefisso libero
-	if strings.HasSuffix(pattern, "/**") {
-		prefix := strings.TrimSuffix(pattern, "/**")
+	if prefix, ok := strings.CutSuffix(pattern, "/**"); ok {
 		return path == prefix || strings.HasPrefix(path, prefix+"/")
 	}
 	// match segmento per segmento

@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func convertDates(input map[string]interface{}) map[string]interface{} {
+func convertDates(input map[string]any) map[string]any {
 
 	for key, value := range input {
 		if value == "CURRENT_TIMESTAMP" {
@@ -16,7 +16,7 @@ func convertDates(input map[string]interface{}) map[string]interface{} {
 		case time.Time:
 			input[key] = value
 
-		case map[string]interface{}:
+		case map[string]any:
 			// Ricorsione: esplora i livelli interni del documento
 			input[key] = convertDates(v)
 		}

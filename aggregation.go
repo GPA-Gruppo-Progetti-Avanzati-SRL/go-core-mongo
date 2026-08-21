@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"path"
+	"strings"
 
 	"github.com/rs/zerolog"
 
@@ -124,9 +125,9 @@ func (r aggregations) pipeline(a *Aggregation, params map[string]any) (mongo.Pip
 
 // generateStage genera un singolo stage. Il registry serve solo a unionWith, che
 // compone per nome un'altra pipeline dello stesso Service.
-type generateStage func(r aggregations, function string, args map[string]interface{}, params any) (bson.D, *core.ApplicationError)
+type generateStage func(r aggregations, function string, args map[string]any, params any) (bson.D, *core.ApplicationError)
 
-func unionWith(r aggregations, function string, args map[string]interface{}, params any) (bson.D, *core.ApplicationError) {
+func unionWith(r aggregations, function string, args map[string]any, params any) (bson.D, *core.ApplicationError) {
 
 	pipelineName, okP := args["pipeline"].(string)
 	if !okP {
@@ -137,10 +138,10 @@ func unionWith(r aggregations, function string, args map[string]interface{}, par
 		return nil, core.TechnicalErrorWithCodeAndMessage("", fmt.Sprintf("aggregation %s not found", pipelineName))
 	}
 
-	var paramsCast map[string]interface{} = nil
+	var paramsCast map[string]any = nil
 
 	// handle the case if the params is nil
-	resultCast, ok := params.(map[string]interface{})
+	resultCast, ok := params.(map[string]any)
 	if ok {
 		paramsCast = resultCast
 	}
@@ -158,14 +159,14 @@ func unionWith(r aggregations, function string, args map[string]interface{}, par
 
 }
 
-func simpleParams(r aggregations, function string, args map[string]interface{}, params any) (bson.D, *core.ApplicationError) {
+func simpleParams(r aggregations, function string, args map[string]any, params any) (bson.D, *core.ApplicationError) {
 	return bson.D{{Key: function, Value: params}}, nil
 }
 
-func simpleArgs(r aggregations, function string, args map[string]interface{}, params any) (bson.D, *core.ApplicationError) {
+func simpleArgs(r aggregations, function string, args map[string]any, params any) (bson.D, *core.ApplicationError) {
 	return bson.D{{Key: function, Value: args}}, nil
 }
-func match(r aggregations, function string, args map[string]interface{}, params any) (bson.D, *core.ApplicationError) {
+func match(r aggregations, function string, args map[string]any, params any) (bson.D, *core.ApplicationError) {
 	if params == nil {
 		return simpleArgs(r, function, args, params)
 	}
@@ -182,7 +183,7 @@ func match(r aggregations, function string, args map[string]interface{}, params 
 	return bson.D{{Key: function, Value: filterM}}, nil
 }
 
-func sort(r aggregations, function string, args map[string]interface{}, params any) (bson.D, *core.ApplicationError) {
+func sort(r aggregations, function string, args map[string]any, params any) (bson.D, *core.ApplicationError) {
 	sortBson := bson.D{}
 	sortEl, ok := args["order"].([]any)
 	if !ok {
@@ -190,7 +191,7 @@ func sort(r aggregations, function string, args map[string]interface{}, params a
 	}
 
 	for _, sortField := range sortEl {
-		sortFi, sok := sortField.(map[string]interface{})
+		sortFi, sok := sortField.(map[string]any)
 		if !sok {
 			return nil, core.TechnicalErrorWithCodeAndMessage("MON-SOR", "no sort structure")
 
@@ -275,14 +276,5 @@ func PipelineToJson(pipeline mongo.Pipeline) string {
 		parts = append(parts, string(b))
 	}
 	// Join with commas into a JSON array
-	// Note: avoid importing strings to keep deps minimal; simple manual join
-	out := "["
-	for i, p := range parts {
-		if i > 0 {
-			out += ","
-		}
-		out += p
-	}
-	out += "]"
-	return out
+	return "[" + strings.Join(parts, ",") + "]"
 }

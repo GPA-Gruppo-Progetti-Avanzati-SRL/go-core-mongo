@@ -16,7 +16,7 @@ type IFilter interface {
 	GetFilterCollectionName(ctx context.Context) string
 }
 
-var operatorHandlers = map[string]func(string, interface{}) (bson.M, error){
+var operatorHandlers = map[string]func(string, any) (bson.M, error){
 	"$eq":          handleSimpleOperator,
 	"$ne":          handleSimpleOperator,
 	"$gt":          handleSimpleOperator,
@@ -48,7 +48,7 @@ func buildFilter(inputStruct IFilter) (bson.M, error) {
 	val := reflect.ValueOf(inputStruct)
 	typ := reflect.TypeOf(inputStruct)
 	// Se è un puntatore, dereferenzialo
-	if typ.Kind() == reflect.Ptr {
+	if typ.Kind() == reflect.Pointer {
 		if val.IsNil() {
 			return nil, fmt.Errorf("input non può essere un puntatore nil")
 		}
@@ -111,18 +111,18 @@ func buildFilter(inputStruct IFilter) (bson.M, error) {
 	return filter, nil
 }
 
-func handleSimpleOperator(operator string, fieldValue interface{}) (bson.M, error) {
+func handleSimpleOperator(operator string, fieldValue any) (bson.M, error) {
 	return bson.M{operator: fieldValue}, nil
 }
 
-func handleArrayOperator(operator string, fieldValue interface{}) (bson.M, error) {
+func handleArrayOperator(operator string, fieldValue any) (bson.M, error) {
 	if reflect.ValueOf(fieldValue).Kind() != reflect.Slice {
 		return nil, fmt.Errorf("operatore '%s' richiede un valore di tipo slice", operator)
 	}
 	return bson.M{operator: fieldValue}, nil
 }
 
-func handleBoolOperator(operator string, fieldValue interface{}) (bson.M, error) {
+func handleBoolOperator(operator string, fieldValue any) (bson.M, error) {
 	boolValue, ok := fieldValue.(bool)
 	if !ok {
 		return nil, fmt.Errorf("operatore '%s' richiede un valore di tipo booleano", operator)
@@ -130,7 +130,7 @@ func handleBoolOperator(operator string, fieldValue interface{}) (bson.M, error)
 	return bson.M{operator: boolValue}, nil
 }
 
-func handleStartsWithOperator(operator string, fieldValue interface{}) (bson.M, error) {
+func handleStartsWithOperator(operator string, fieldValue any) (bson.M, error) {
 	strValue, ok := fieldValue.(string)
 	if !ok {
 		return nil, fmt.Errorf("operatore '%s' richiede un valore di tipo stringa", operator)
@@ -138,7 +138,7 @@ func handleStartsWithOperator(operator string, fieldValue interface{}) (bson.M, 
 	return bson.M{"$regex": "^" + strValue}, nil
 }
 
-func handleIStartsWithOperator(operator string, fieldValue interface{}) (bson.M, error) {
+func handleIStartsWithOperator(operator string, fieldValue any) (bson.M, error) {
 	strValue, ok := fieldValue.(string)
 	if !ok {
 		return nil, fmt.Errorf("operatore '%s' richiede un valore di tipo stringa", operator)
@@ -146,7 +146,7 @@ func handleIStartsWithOperator(operator string, fieldValue interface{}) (bson.M,
 	return bson.M{"$regex": bson.Regex{Pattern: "^" + strValue, Options: "i"}}, nil
 }
 
-func handleEndsWithOperator(operator string, fieldValue interface{}) (bson.M, error) {
+func handleEndsWithOperator(operator string, fieldValue any) (bson.M, error) {
 	strValue, ok := fieldValue.(string)
 	if !ok {
 		return nil, fmt.Errorf("operatore '%s' richiede un valore di tipo stringa", operator)
@@ -154,7 +154,7 @@ func handleEndsWithOperator(operator string, fieldValue interface{}) (bson.M, er
 	return bson.M{"$regex": strValue + "$"}, nil
 }
 
-func handleIEndsWithOperator(operator string, fieldValue interface{}) (bson.M, error) {
+func handleIEndsWithOperator(operator string, fieldValue any) (bson.M, error) {
 	strValue, ok := fieldValue.(string)
 	if !ok {
 		return nil, fmt.Errorf("operatore '%s' richiede un valore di tipo stringa", operator)
@@ -162,7 +162,7 @@ func handleIEndsWithOperator(operator string, fieldValue interface{}) (bson.M, e
 	return bson.M{"$regex": bson.Regex{Pattern: strValue + "$", Options: "i"}}, nil
 }
 
-func handleContainsOperator(operator string, fieldValue interface{}) (bson.M, error) {
+func handleContainsOperator(operator string, fieldValue any) (bson.M, error) {
 	strValue, ok := fieldValue.(string)
 	if !ok {
 		return nil, fmt.Errorf("operatore '%s' richiede un valore di tipo stringa", operator)
@@ -170,7 +170,7 @@ func handleContainsOperator(operator string, fieldValue interface{}) (bson.M, er
 	return bson.M{"$regex": strValue}, nil
 }
 
-func handleIContainsOperator(operator string, fieldValue interface{}) (bson.M, error) {
+func handleIContainsOperator(operator string, fieldValue any) (bson.M, error) {
 	strValue, ok := fieldValue.(string)
 	if !ok {
 		return nil, fmt.Errorf("operatore '%s' richiede un valore di tipo stringa", operator)
@@ -178,7 +178,7 @@ func handleIContainsOperator(operator string, fieldValue interface{}) (bson.M, e
 	return bson.M{"$regex": bson.Regex{Pattern: strValue, Options: "i"}}, nil
 }
 
-func handleRegexOperator(operator string, fieldValue interface{}) (bson.M, error) {
+func handleRegexOperator(operator string, fieldValue any) (bson.M, error) {
 	strValue, ok := fieldValue.(string)
 	if !ok {
 		return nil, fmt.Errorf("operatore '%s' richiede un valore di tipo stringa", operator)
@@ -186,7 +186,7 @@ func handleRegexOperator(operator string, fieldValue interface{}) (bson.M, error
 	return bson.M{"$regex": strValue}, nil
 }
 
-func handleSizeOperator(operator string, fieldValue interface{}) (bson.M, error) {
+func handleSizeOperator(operator string, fieldValue any) (bson.M, error) {
 	val := reflect.ValueOf(fieldValue)
 	switch val.Kind() {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
