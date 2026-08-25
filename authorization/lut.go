@@ -9,7 +9,6 @@ import (
 
 	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app"
 	authcore "github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app/authorization"
-	coremongo "github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-mongo"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -22,7 +21,7 @@ type AuthorizationLut struct {
 	updating   atomic.Bool
 	lastUpdate atomic.Value
 	minRefresh time.Duration
-	ls         *coremongo.Service
+	ls         Collections
 
 	roleApis     sync.Map // roleId -> map[string]ApiNode
 	roleUis      sync.Map // roleId -> map[string]UINode
@@ -42,7 +41,18 @@ type roleFunctionsAggRes struct {
 	ActionApi []ActApi  `bson:"actsApi" json:"actsApi"`
 }
 
-func NewAuthorizationLut(lc fx.Lifecycle, ls *coremongo.Service) *AuthorizationLut {
+// Collections è quel che la LUT usa del servizio Mongo: la sola collection dell'ACL.
+// Dichiararla qui, invece di dipendere da *coremongo.Service, tiene questo package
+// indipendente dal root — ed è ciò che permette al root di esporre coremongo.WithAuthorization()
+// senza ciclo di import. *coremongo.Service la soddisfa (metodo promosso da mongolks).
+type Collections interface {
+	GetCollection(collectionId string, writeConcern string) *mongo.Collection
+}
+
+// NewAuthorizationLut costruisce la LUT dell'ACL. Il wiring normale passa da
+// coremongo.Module(&cfg, coremongo.WithAuthorization()); questo costruttore resta esportato per
+// chi wira a mano (serve *coremongo.Service, che soddisfa Collections).
+func NewAuthorizationLut(lc fx.Lifecycle, ls Collections) *AuthorizationLut {
 
 	refresh := 10 * time.Minute
 
@@ -198,7 +208,7 @@ func (l *AuthorizationLut) refresh() *core.ApplicationError {
 		}}},
 	}
 	if zerolog.GlobalLevel() < zerolog.DebugLevel {
-		log.Trace().Msgf("%s", coremongo.PipelineToJson(pipeline))
+		log.Trace().Msgf("%s", pipelineToJson(pipeline))
 	}
 	cur, aggErr := coll.Aggregate(ctx, pipeline)
 	if aggErr != nil {
@@ -616,4 +626,21 @@ func matchMethods(methods []string, method string) bool {
 		}
 	}
 	return false
+}
+
+// pipelineToJson rende la pipeline leggibile nei log di trace. È l'equivalente locale di
+// coremongo.PipelineToJson: usarla da qui reintrodurrebbe la dipendenza dal root.
+func pipelineToJson(pipeline mongo.Pipeline) string {
+	if len(pipeline) == 0 {
+		return "[]"
+	}
+	arr := make(bson.A, 0, len(pipeline))
+	for _, st := range pipeline {
+		arr = append(arr, st)
+	}
+	data, err := bson.MarshalExtJSON(arr, false, false)
+	if err != nil {
+		return "[]"
+	}
+	return string(data)
 }

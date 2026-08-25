@@ -36,7 +36,16 @@ type aggregations map[string]*Aggregation
 
 var stageGenerators map[string]generateStage
 
-func init() {
+// loadAggregations percorre dir in ricorsione e carica come pipeline ogni file
+// .yaml/.yml trovato, a qualsiasi profondità: il nome della cartella non serve,
+// quindi l'app passa la sua embed.FS così com'è.
+//
+// dir nil significa "nessuna aggregation": l'app non ha passato WithAggregations.
+// Ogni altra anomalia è un errore, così l'app non parte con pipeline mancanti.
+func loadAggregations(dir fs.FS) (aggregations, error) {
+	if dir == nil {
+		return nil, nil
+	}
 	stageGenerators = map[string]generateStage{
 
 		"$skip":      simpleParams,
@@ -48,19 +57,6 @@ func init() {
 		"$match":     match,
 		"$unionWith": unionWith,
 	}
-}
-
-// loadAggregations percorre dir in ricorsione e carica come pipeline ogni file
-// .yaml/.yml trovato, a qualsiasi profondità: il nome della cartella non serve,
-// quindi l'app passa la sua embed.FS così com'è.
-//
-// dir nil significa "nessuna aggregation": l'app non ha passato WithAggregations.
-// Ogni altra anomalia è un errore, così l'app non parte con pipeline mancanti.
-func loadAggregations(dir fs.FS) (aggregations, error) {
-	if dir == nil {
-		return nil, nil
-	}
-
 	regs := make(aggregations)
 	err := fs.WalkDir(dir, ".", func(p string, d fs.DirEntry, errWalk error) error {
 		if errWalk != nil {
