@@ -102,6 +102,12 @@ func (l *AuthorizationLut) refresh() *core.ApplicationError {
 
 	collName := "acl"
 	coll := l.ls.GetCollection(collName, "")
+	if coll == nil {
+		err := core.TechnicalError().WithCode("MONGO-COLL-NOTFOUND").
+			WithMessage("collection '" + collName + "' non configurata")
+		log.Error().Err(err).Msg("Authorization LUT refresh error")
+		return err
+	}
 
 	pipeline := mongo.Pipeline{
 		// 1) Ruoli

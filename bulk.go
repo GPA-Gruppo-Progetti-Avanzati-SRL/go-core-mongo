@@ -81,10 +81,9 @@ func (s *Service) BulkWrite[T ICollection](ctx context.Context, models []mongo.W
 	}
 	var obj T
 	collection := obj.GetCollectionName(ctx)
-	coll := s.GetCollection(collection, "")
-	if coll == nil {
-		return nil, core.TechnicalError().WithCode("MONGO-BULK-COLL").
-			WithMessage("collezione '" + collection + "' non configurata")
+	coll, collErr := s.collection(collection, "")
+	if collErr != nil {
+		return nil, collErr
 	}
 	res, err := coll.BulkWrite(ctx, models, opts...)
 	if err != nil {

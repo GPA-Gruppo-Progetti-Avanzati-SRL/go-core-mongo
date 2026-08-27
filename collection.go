@@ -19,6 +19,23 @@ type ICollection interface {
 	GetCollectionName(ctx context.Context) string
 }
 
+// codeCollectionNotFound è il codice applicativo per una collection richiesta ma non presente in
+// collections: della config. mongolks.LinkedService.GetCollection non propaga errore in quel caso —
+// logga e ritorna nil — quindi senza il controllo la prima chiamata sul *mongo.Collection nil
+// andrebbe in panic invece di fallire con un ApplicationError.
+const codeCollectionNotFound = "MONGO-COLL-NOTFOUND"
+
+// collection risolve la collection e verifica che GetCollection non abbia ritornato nil, così
+// ogni CRUD generico fallisce con un ApplicationError invece di panicare su una collection nil.
+func (s *Service) collection(collectionId string, wc string) (*mongo.Collection, *core.ApplicationError) {
+	coll := s.GetCollection(collectionId, wc)
+	if coll == nil {
+		return nil, core.TechnicalError().WithCode(codeCollectionNotFound).
+			WithMessage(fmt.Sprintf("collection '%s' non configurata", collectionId))
+	}
+	return coll, nil
+}
+
 func (s *Service) GetObjectById[T ICollection](ctx context.Context, id string) (*T, *core.ApplicationError) {
 	var result T
 
@@ -26,7 +43,11 @@ func (s *Service) GetObjectById[T ICollection](ctx context.Context, id string) (
 	filter := bson.D{
 		bson.E{Key: "_id", Value: id},
 	}
-	err := s.GetCollection(collection, "").FindOne(ctx, filter).Decode(&result)
+	coll, collErr := s.collection(collection, "")
+	if collErr != nil {
+		return nil, collErr
+	}
+	err := coll.FindOne(ctx, filter).Decode(&result)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return nil, core.NotFoundError().WithCause(err)
@@ -44,7 +65,11 @@ func (s *Service) CountDocuments(ctx context.Context, filter IFilter) (int64, *c
 	if errB != nil {
 		return 0, core.TechnicalError().WithCause(errB)
 	}
-	i, err := s.GetCollection(collection, "").CountDocuments(ctx, filterB)
+	coll, collErr := s.collection(collection, "")
+	if collErr != nil {
+		return 0, collErr
+	}
+	i, err := coll.CountDocuments(ctx, filterB)
 	if err != nil {
 		return 0, core.TechnicalError().WithCause(err)
 	}
@@ -59,7 +84,11 @@ func (s *Service) GetObjectByFilter[T ICollection](ctx context.Context, filter I
 	if errB != nil {
 		return nil, core.TechnicalError().WithCause(errB)
 	}
-	err := s.GetCollection(collection, "").FindOne(ctx, filterB).Decode(&obj)
+	coll, collErr := s.collection(collection, "")
+	if collErr != nil {
+		return nil, collErr
+	}
+	err := coll.FindOne(ctx, filterB).Decode(&obj)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return nil, core.NotFoundError().WithCause(err)
@@ -77,7 +106,11 @@ func (s *Service) GetObjectsByFilter[T ICollection](ctx context.Context, filter 
 	if errB != nil {
 		return nil, core.TechnicalError().WithCause(errB)
 	}
-	cur, err := s.GetCollection(collection, "").Find(ctx, filterB)
+	coll, collErr := s.collection(collection, "")
+	if collErr != nil {
+		return nil, collErr
+	}
+	cur, err := coll.Find(ctx, filterB)
 	if err != nil {
 		return nil, core.TechnicalError().WithCode("MONGO-GOBF-ERRFIND").WithCause(err)
 	}
@@ -98,8 +131,12 @@ func (s *Service) GetObjectsByFilterSorted[T ICollection](ctx context.Context, f
 	if errB != nil {
 		return nil, core.TechnicalError().WithCause(errB)
 	}
+	coll, collErr := s.collection(collection, "")
+	if collErr != nil {
+		return nil, collErr
+	}
 	findOptions := options.Find().SetSort(SortToBson(sort))
-	cur, err := s.GetCollection(collection, "").Find(ctx, filterB, findOptions)
+	cur, err := coll.Find(ctx, filterB, findOptions)
 	if err != nil {
 		return nil, core.TechnicalError().WithCode("MONGO-GOBFS-ERRFIND").WithCause(err)
 	}
@@ -115,7 +152,10 @@ func (s *Service) GetObjectsByFilterSorted[T ICollection](ctx context.Context, f
 
 func (s *Service) InsertOne[T ICollection](ctx context.Context, obj T, opts ...options.Lister[options.InsertOneOptions]) (any, *core.ApplicationError) {
 
-	collection := s.GetCollection(obj.GetCollectionName(ctx), "")
+	collection, collErr := s.collection(obj.GetCollectionName(ctx), "")
+	if collErr != nil {
+		return nil, collErr
+	}
 	res, errIns := collection.InsertOne(ctx, obj, opts...)
 
 	if errIns != nil {
@@ -134,7 +174,10 @@ func (s *Service) InsertMany[T ICollection](ctx context.Context, list []T, opts 
 	// Il nome della collection viene dal primo elemento, non da uno zero value di T:
 	// con T puntatore o interfaccia `var obj T` è nil e GetCollectionName va in panic.
 	name := list[0].GetCollectionName(ctx)
-	collection := s.GetCollection(name, "")
+	collection, collErr := s.collection(name, "")
+	if collErr != nil {
+		return collErr
+	}
 
 	res, errIns := collection.InsertMany(ctx, list, opts...)
 	if errIns != nil {
@@ -154,7 +197,10 @@ func (s *Service) UpdateOne(ctx context.Context, filter IFilter, update bson.M, 
 	if errB != nil {
 		return core.TechnicalError().WithCause(errB)
 	}
-	collectionNotifiche := s.GetCollection(filter.GetFilterCollectionName(ctx), "")
+	collectionNotifiche, collErr := s.collection(filter.GetFilterCollectionName(ctx), "")
+	if collErr != nil {
+		return collErr
+	}
 	res, err := collectionNotifiche.UpdateOne(ctx, filterB, update, opts...)
 	if err != nil {
 		log.Error().Err(err).Msgf("Impossibile aggiornare %s %s", filter.GetFilterCollectionName(ctx), err.Error())
@@ -173,7 +219,10 @@ func (s *Service) UpdateMany(ctx context.Context, filter IFilter, update bson.M,
 	if errB != nil {
 		return core.TechnicalError().WithCause(errB)
 	}
-	collectionNotifiche := s.GetCollection(filter.GetFilterCollectionName(ctx), "")
+	collectionNotifiche, collErr := s.collection(filter.GetFilterCollectionName(ctx), "")
+	if collErr != nil {
+		return collErr
+	}
 	res, err := collectionNotifiche.UpdateMany(ctx, filterB, update)
 	if err != nil {
 		log.Error().Err(err).Msgf("Impossibile aggiornare %s %s", filter.GetFilterCollectionName(ctx), err.Error())
@@ -192,7 +241,10 @@ func (s *Service) ReplaceOne[T ICollection](ctx context.Context, filter IFilter,
 	if errB != nil {
 		return core.TechnicalError().WithCause(errB)
 	}
-	collectionNotifiche := s.GetCollection(obj.GetCollectionName(ctx), "")
+	collectionNotifiche, collErr := s.collection(obj.GetCollectionName(ctx), "")
+	if collErr != nil {
+		return collErr
+	}
 	res, err := collectionNotifiche.ReplaceOne(ctx, filterB, obj, ro...)
 	if err != nil {
 		log.Error().Err(err).Msgf("Impossibile replace %s %s", obj.GetCollectionName(ctx), err.Error())
@@ -211,7 +263,10 @@ func (s *Service) DeleteOne(ctx context.Context, filter IFilter, ro ...options.L
 	if errB != nil {
 		return core.TechnicalError().WithCause(errB)
 	}
-	collectionNotifiche := s.GetCollection(filter.GetFilterCollectionName(ctx), "")
+	collectionNotifiche, collErr := s.collection(filter.GetFilterCollectionName(ctx), "")
+	if collErr != nil {
+		return collErr
+	}
 	res, err := collectionNotifiche.DeleteOne(ctx, filterB, ro...)
 	if err != nil {
 		log.Error().Err(err).Msgf("Impossibile rimuovere %s %s", filter.GetFilterCollectionName(ctx), err.Error())
@@ -234,7 +289,10 @@ func (s *Service) DeleteMany(ctx context.Context, filter IFilter, ro ...options.
 	if errB != nil {
 		return core.TechnicalError().WithCause(errB)
 	}
-	collectionNotifiche := s.GetCollection(filter.GetFilterCollectionName(ctx), "")
+	collectionNotifiche, collErr := s.collection(filter.GetFilterCollectionName(ctx), "")
+	if collErr != nil {
+		return collErr
+	}
 	_, err := collectionNotifiche.DeleteMany(ctx, filterB, ro...)
 	if err != nil {
 		log.Error().Err(err).Msgf("Impossibile rimuovere %s %s", filter.GetFilterCollectionName(ctx), err.Error())
@@ -304,7 +362,11 @@ func (s *Service) GetIds(ctx context.Context, filter string, collectionName stri
 		findOptions = findOptions.SetSort(sortMap)
 	}
 
-	cursor, err := s.GetCollection(collectionName, "").Find(ctx, filterM, findOptions)
+	coll, collErr := s.collection(collectionName, "")
+	if collErr != nil {
+		return nil, collErr
+	}
+	cursor, err := coll.Find(ctx, filterM, findOptions)
 	if err != nil {
 		errMsg := fmt.Errorf("error Mongo: %s", err.Error())
 		return nil, core.TechnicalError().WithCause(errMsg)
@@ -326,7 +388,10 @@ func (s *Service) GetIds(ctx context.Context, filter string, collectionName stri
 }
 
 func (s *Service) GetPageByFilter[T ICollection](ctx context.Context, filter IFilter, paging *page.Paging, opts ...options.Lister[options.FindOptions]) ([]T, *core.ApplicationError) {
-	collection := s.GetCollection(filter.GetFilterCollectionName(ctx), "")
+	collection, collErr := s.collection(filter.GetFilterCollectionName(ctx), "")
+	if collErr != nil {
+		return nil, collErr
+	}
 
 	filterB, errB := buildFilter(filter)
 	if errB != nil {
@@ -364,7 +429,10 @@ func (s *Service) GetPageByFilter[T ICollection](ctx context.Context, filter IFi
 }
 
 func (s *Service) GetSequence(ctx context.Context, sequenceCollection, sequenceName string) (int, *core.ApplicationError) {
-	seqColl := s.GetCollection(sequenceCollection, "")
+	seqColl, collErr := s.collection(sequenceCollection, "")
+	if collErr != nil {
+		return 0, collErr
+	}
 
 	// Define the filter and update for the findAndModify equivalent
 	filter := bson.M{"_id": sequenceName}
@@ -392,7 +460,10 @@ func (s *Service) GetSequence(ctx context.Context, sequenceCollection, sequenceN
 }
 
 func (s *Service) UpdateSingleRecord(ctx context.Context, collectionName string, filterR any, updateR any) error {
-	collectionRicorrenza := s.GetCollection(collectionName, "")
+	collectionRicorrenza, collErr := s.collection(collectionName, "")
+	if collErr != nil {
+		return collErr
+	}
 	resR, err := collectionRicorrenza.UpdateOne(ctx, filterR, updateR)
 	if err != nil {
 		log.Error().Err(err).Msg("Impossibile aggiornare")

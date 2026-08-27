@@ -228,7 +228,11 @@ func (s *Service) ExecuteAggregation[T any](ctx context.Context, name string, pa
 		log.Trace().Str("pipeline", value).Msg("aggregation pipeline")
 	}
 
-	cur, errAgg := s.GetCollection(aggregation.Collection, "").Aggregate(ctx, mp, opts...)
+	coll, collErr := s.collection(aggregation.Collection, "")
+	if collErr != nil {
+		return nil, collErr
+	}
+	cur, errAgg := coll.Aggregate(ctx, mp, opts...)
 	if errAgg != nil {
 		if errors.Is(errAgg, mongo.ErrNoDocuments) {
 			return nil, core.NotFoundError().WithCause(errAgg)
