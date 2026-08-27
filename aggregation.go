@@ -106,7 +106,7 @@ func (r aggregations) pipeline(a *Aggregation, params map[string]any) (mongo.Pip
 		fparams := params[stage.Key]
 		gs, ok := stageGenerators[stage.Operator]
 		if !ok {
-			return nil, core.TechnicalErrorWithCodeAndMessage("UNKNOWN Operator", "operator "+stage.Operator+" is not supported")
+			return nil, core.TechnicalError().WithCode("UNKNOWN Operator").WithMessage("operator " + stage.Operator + " is not supported")
 		}
 		s, errG := gs(r, stage.Operator, stage.Args, fparams)
 		if errG != nil {
@@ -127,11 +127,11 @@ func unionWith(r aggregations, function string, args map[string]any, params any)
 
 	pipelineName, okP := args["pipeline"].(string)
 	if !okP {
-		return nil, core.TechnicalErrorWithCodeAndMessage("", fmt.Sprintf("pipeline %s not found", pipelineName))
+		return nil, core.TechnicalError().WithCode("").WithMessage(fmt.Sprintf("pipeline %s not found", pipelineName))
 	}
 	a, okA := r[pipelineName]
 	if !okA {
-		return nil, core.TechnicalErrorWithCodeAndMessage("", fmt.Sprintf("aggregation %s not found", pipelineName))
+		return nil, core.TechnicalError().WithCode("").WithMessage(fmt.Sprintf("aggregation %s not found", pipelineName))
 	}
 
 	var paramsCast map[string]any = nil
@@ -168,13 +168,13 @@ func match(r aggregations, function string, args map[string]any, params any) (bs
 	}
 	p, ok := params.(IFilter)
 	if !ok {
-		return nil, core.TechnicalErrorWithCodeAndMessage("MON-FIL", "Filtro non di tipo IFilter")
+		return nil, core.TechnicalError().WithCode("MON-FIL").WithMessage("Filtro non di tipo IFilter")
 	}
 
 	filterM, err := buildFilter(p)
 
 	if err != nil {
-		return nil, core.TechnicalErrorWithError(err)
+		return nil, core.TechnicalError().WithCause(err)
 	}
 	return bson.D{{Key: function, Value: filterM}}, nil
 }
@@ -183,24 +183,24 @@ func sort(r aggregations, function string, args map[string]any, params any) (bso
 	sortBson := bson.D{}
 	sortEl, ok := args["order"].([]any)
 	if !ok {
-		return nil, core.TechnicalErrorWithCodeAndMessage("MON-SOR", "order non trovato")
+		return nil, core.TechnicalError().WithCode("MON-SOR").WithMessage("order non trovato")
 	}
 
 	for _, sortField := range sortEl {
 		sortFi, sok := sortField.(map[string]any)
 		if !sok {
-			return nil, core.TechnicalErrorWithCodeAndMessage("MON-SOR", "no sort structure")
+			return nil, core.TechnicalError().WithCode("MON-SOR").WithMessage("no sort structure")
 
 		}
 
 		sortC, cok := sortFi["field"].(string)
 		if !cok {
-			return nil, core.TechnicalErrorWithCodeAndMessage("MON-SOR", "no sort field in sort")
+			return nil, core.TechnicalError().WithCode("MON-SOR").WithMessage("no sort field in sort")
 
 		}
 		sortV, vok := sortFi["verse"].(string)
 		if !vok {
-			return nil, core.TechnicalErrorWithCodeAndMessage("MON-SOR", "no  sort verse in sort")
+			return nil, core.TechnicalError().WithCode("MON-SOR").WithMessage("no  sort verse in sort")
 
 		}
 		order := 1 // Default to ascending
@@ -216,7 +216,7 @@ func sort(r aggregations, function string, args map[string]any, params any) (bso
 func (s *Service) ExecuteAggregation[T any](ctx context.Context, name string, params map[string]any, opts ...options.Lister[options.AggregateOptions]) ([]*T, *core.ApplicationError) {
 	aggregation, ok := s.aggregations[name]
 	if !ok {
-		return nil, core.BusinessErrorWithCodeAndMessage("NOT-FOUND", fmt.Sprintf("aggregation '%s' not found", name))
+		return nil, core.BusinessError().WithCode("NOT-FOUND").WithMessage(fmt.Sprintf("aggregation '%s' not found", name))
 	}
 	mp, err := s.aggregations.pipeline(aggregation, params)
 
@@ -231,9 +231,9 @@ func (s *Service) ExecuteAggregation[T any](ctx context.Context, name string, pa
 	cur, errAgg := s.GetCollection(aggregation.Collection, "").Aggregate(ctx, mp, opts...)
 	if errAgg != nil {
 		if errors.Is(errAgg, mongo.ErrNoDocuments) {
-			return nil, core.NotFoundError()
+			return nil, core.NotFoundError().WithCause(errAgg)
 		}
-		return nil, core.TechnicalErrorWithCodeAndMessage("MONGO-EXECAGGR", errAgg.Error())
+		return nil, core.TechnicalError().WithCode("MONGO-EXECAGGR").WithCause(errAgg)
 	}
 	defer func() {
 		ccerr := cur.Close(ctx)
@@ -243,7 +243,7 @@ func (s *Service) ExecuteAggregation[T any](ctx context.Context, name string, pa
 	}()
 	results := make([]*T, 0)
 	if errCur := cur.All(ctx, &results); errCur != nil {
-		return nil, core.TechnicalErrorWithCodeAndMessage("MONGO-EXECAGGR-CUR", errCur.Error())
+		return nil, core.TechnicalError().WithCode("MONGO-EXECAGGR-CUR").WithCause(errCur)
 	}
 
 	return results, nil

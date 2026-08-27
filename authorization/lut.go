@@ -213,13 +213,13 @@ func (l *AuthorizationLut) refresh() *core.ApplicationError {
 	cur, aggErr := coll.Aggregate(ctx, pipeline)
 	if aggErr != nil {
 		log.Error().Err(aggErr).Msg("Authorization LUT aggregation error")
-		return core.TechnicalErrorWithError(aggErr)
+		return core.TechnicalError().WithCause(aggErr)
 	}
 	defer func() { _ = cur.Close(ctx) }()
 	var res []*roleFunctionsAggRes
 	if err := cur.All(ctx, &res); err != nil {
 		log.Error().Err(err).Msg("Authorization LUT cursor error")
-		return core.TechnicalErrorWithError(err)
+		return core.TechnicalError().WithCause(err)
 	}
 
 	// Popola mappe per viste
