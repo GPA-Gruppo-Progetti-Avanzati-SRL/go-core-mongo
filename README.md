@@ -115,6 +115,51 @@ if err != nil {
 ```
 
 
+### Scritture in batch (BulkWrite)
+
+`Service.BulkWrite[T]` esegue una lista di `mongo.WriteModel` in **una sola** BulkWrite. La collection
+arriva dal type param (`T` implementa `ICollection`), non da un parametro: un batch di `WriteModel` è
+opaco — dal modello non si risale all'entità — quindi `T` è anche l'unica dichiarazione, verificata dal
+compilatore, di che cosa quei modelli stiano scrivendo. `T` non è inferibile dagli argomenti, va
+istanziato esplicitamente, e deve essere il tipo **valore** (il nome è letto da uno zero value, come in
+`GetObjectById`).
+
+```go
+models := make([]mongo.WriteModel, 0, len(eventi))
+for _, e := range eventi {
+    models = append(models, mongo.NewReplaceOneModel().
+        SetFilter(bson.M{"_id": e.ID}).
+        SetReplacement(e).
+        SetUpsert(true))
+}
+
+res, appErr := svc.BulkWrite[model.Evento](ctx, models, coremongo.BulkUnordered())
+if appErr != nil {
+    return appErr
+}
+if res == nil {
+    // nessuna BulkWrite eseguita: il batch era vuoto
+    return nil
+}
+log.Debug().Int64("upserted", res.Upserted).Int64("modified", res.Modified).
+    Int64("unchanged", res.Unchanged).Msg("batch scritto")
+```
+
+- **Il risultato è un `*BulkResult`, `nil` se e solo se nessuna BulkWrite è stata eseguita** (batch
+  vuoto, oppure insieme a un errore): un nil è quindi distinguibile da un batch eseguito con tutti i
+  contatori a zero, e va gestito prima di leggerli. I contatori sono la traduzione di quelli del
+  driver: `Inserted` (da un `InsertOneModel`), `Upserted` (creati da un upsert), `Modified`,
+  `Unchanged` (`MatchedCount - ModifiedCount`: trovati ma non modificati — contenuto già identico, o
+  update pipeline che ha rimesso `$$ROOT` perché una guardia applicativa non era soddisfatta) e
+  `Deleted`. Sono **aggregati per batch**: se il batch mescola tipi di operazione diversi, i loro esiti
+  non sono più distinguibili qui.
+- **L'ordine di esecuzione non ha un default implicito**: lo passa il chiamante con `BulkOrdered()`,
+  `BulkUnordered()` o `BulkOrderedIf(compacted)`. `BulkUnordered` è più efficiente lato server ma è
+  sicura SOLO se il chiamante garantisce al più una scrittura per `_id` nel batch (tipicamente perché
+  l'ha compattato a monte per chiave); altrimenti l'ordine relativo di due operazioni sullo stesso
+  documento va perso, e due upsert concorrenti sullo stesso `_id` inesistente possono anche produrre un
+  duplicate key error. `BulkOrderedIf` è la stessa domanda scritta una volta sola.
+
 ### Aggregation Pipeline generator
 
 Le pipeline sono file YAML embeddati nel binario, **uno per pipeline**. Non stanno nel
