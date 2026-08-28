@@ -103,7 +103,7 @@ func (l *AuthorizationLut) refresh() *core.ApplicationError {
 	collName := "acl"
 	coll := l.ls.GetCollection(collName, "")
 	if coll == nil {
-		err := core.TechnicalError().WithCode("MONGO-COLL-NOTFOUND").
+		err := core.TechnicalError().WithAmbit(ambit).WithCode(codeCollectionNotFound).
 			WithMessage("collection '" + collName + "' non configurata")
 		log.Error().Err(err).Msg("Authorization LUT refresh error")
 		return err
@@ -219,13 +219,13 @@ func (l *AuthorizationLut) refresh() *core.ApplicationError {
 	cur, aggErr := coll.Aggregate(ctx, pipeline)
 	if aggErr != nil {
 		log.Error().Err(aggErr).Msg("Authorization LUT aggregation error")
-		return core.TechnicalError().WithCause(aggErr)
+		return core.TechnicalError().WithAmbit(ambit).WithCode(codeAclAggregate).WithCause(aggErr)
 	}
 	defer func() { _ = cur.Close(ctx) }()
 	var res []*roleFunctionsAggRes
 	if err := cur.All(ctx, &res); err != nil {
 		log.Error().Err(err).Msg("Authorization LUT cursor error")
-		return core.TechnicalError().WithCause(err)
+		return core.TechnicalError().WithAmbit(ambit).WithCode(codeAclCursor).WithCause(err)
 	}
 
 	// Popola mappe per viste
@@ -650,3 +650,13 @@ func pipelineToJson(pipeline mongo.Pipeline) string {
 	}
 	return string(data)
 }
+
+// ambit e codici della LUT di autorizzazione. Il package non importa il root di coremongo (è
+// il root a esporre l'Option), quindi la costante è ripetuta invece che condivisa: due parole
+// duplicate valgono meno di una dipendenza circolare.
+const (
+	ambit                  = "go-core-mongo"
+	codeCollectionNotFound = "MONGO-COLL-NOTFOUND" // collection acl non configurata
+	codeAclAggregate       = "MONGO-ACL-AGGR"      // aggregation di refresh della LUT fallita
+	codeAclCursor          = "MONGO-ACL-CUR"       // lettura del cursore di refresh fallita
+)
