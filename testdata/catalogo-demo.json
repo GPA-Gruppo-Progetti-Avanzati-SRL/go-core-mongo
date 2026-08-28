@@ -1,0 +1,41 @@
+[
+  {
+    "$match": {
+      "reparto": "DEMO",
+      "scheda.stato": "A",
+      "$expr": { "$eq": [ { "$size": "$attributi" }, 3 ] }
+    }
+  },
+  {
+    "$addFields": {
+      "codice": {
+        "$reduce": {
+          "input": {
+            "$map": {
+              "input": { "$sortArray": { "input": "$attributi", "sortBy": { "posizione": 1 } } },
+              "as": "d",
+              "in": "$$d.valore"
+            }
+          },
+          "initialValue": "",
+          "in": {
+            "$cond": [
+              { "$eq": ["$$value", ""] },
+              "$$this",
+              { "$concat": ["$$value", "-", "$$this"] }
+            ]
+          }
+        }
+      }
+    }
+  },
+  {
+    "$project": {
+      "_id": 0,
+      "chiave": 1,
+      "codice": 1,
+      "tipoArticolo": 1,
+      "descrizione": 1
+    }
+  }
+]

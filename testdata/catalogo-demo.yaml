@@ -1,0 +1,51 @@
+# Fixture di prova per loadAggregations + reg.pipeline. Il dominio è inventato: serve solo a
+# esercitare gli operatori, non riproduce alcuna collection reale.
+#
+# Copre: $match con $expr/$size, $addFields con $reduce su $map su $sortArray, $cond, $concat,
+# e $project. Il basename del file deve coincidere con `name`, perché il test cerca il golden
+# omonimo con estensione .json.
+name: catalogo-demo
+collection: catalogo
+stages:
+  - operator: $match
+    args:
+      reparto: "DEMO"
+      "scheda.stato": "A"
+      $expr:
+        $eq:
+          - $size: "$attributi"
+          - 3
+
+  # Costruisce una chiave "a-b-c" concatenando i valori degli attributi in ordine di posizione.
+  - operator: $addFields
+    args:
+      codice:
+        $reduce:
+          input:
+            $map:
+              input:
+                $sortArray:
+                  input: "$attributi"
+                  sortBy:
+                    posizione: 1
+              as: "d"
+              in: "$$d.valore"
+          initialValue: ""
+          in:
+            $cond:
+              - $eq:
+                  - "$$value"
+                  - ""
+              - "$$this"
+              - $concat:
+                  - "$$value"
+                  - "-"
+                  - "$$this"
+
+  - operator: $project
+    args:
+      _id: 0
+      chiave: 1
+      codice: 1
+      tipoArticolo: 1
+      descrizione: 1
