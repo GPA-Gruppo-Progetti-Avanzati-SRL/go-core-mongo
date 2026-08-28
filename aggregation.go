@@ -119,6 +119,11 @@ func (r aggregations) pipeline(a *Aggregation, params map[string]any) (mongo.Pip
 
 }
 
+// codeAggregationNotFound: nome di aggregation non presente nel registry costruito da
+// WithAggregations. È una misconfigurazione (500), non un "oggetto non trovato" del chiamante:
+// stessa natura di codeCollectionNotFound.
+const codeAggregationNotFound = "MONGO-AGGR-NOTFOUND"
+
 // generateStage genera un singolo stage. Il registry serve solo a unionWith, che
 // compone per nome un'altra pipeline dello stesso Service.
 type generateStage func(r aggregations, function string, args map[string]any, params any) (bson.D, *core.ApplicationError)
@@ -127,11 +132,13 @@ func unionWith(r aggregations, function string, args map[string]any, params any)
 
 	pipelineName, okP := args["pipeline"].(string)
 	if !okP {
-		return nil, core.TechnicalError().WithCode("").WithMessage(fmt.Sprintf("pipeline %s not found", pipelineName))
+		return nil, core.TechnicalError().WithCode(codeAggregationNotFound).
+			WithMessage("unionWith: argomento 'pipeline' assente o non stringa")
 	}
 	a, okA := r[pipelineName]
 	if !okA {
-		return nil, core.TechnicalError().WithCode("").WithMessage(fmt.Sprintf("aggregation %s not found", pipelineName))
+		return nil, core.TechnicalError().WithCode(codeAggregationNotFound).
+			WithMessage(fmt.Sprintf("unionWith: aggregation '%s' non configurata", pipelineName))
 	}
 
 	var paramsCast map[string]any = nil
@@ -216,7 +223,8 @@ func sort(r aggregations, function string, args map[string]any, params any) (bso
 func (s *Service) ExecuteAggregation[T any](ctx context.Context, name string, params map[string]any, opts ...options.Lister[options.AggregateOptions]) ([]*T, *core.ApplicationError) {
 	aggregation, ok := s.aggregations[name]
 	if !ok {
-		return nil, core.BusinessError().WithCode("NOT-FOUND").WithMessage(fmt.Sprintf("aggregation '%s' not found", name))
+		return nil, core.TechnicalError().WithCode(codeAggregationNotFound).
+			WithMessage(fmt.Sprintf("aggregation '%s' non configurata", name))
 	}
 	mp, err := s.aggregations.pipeline(aggregation, params)
 
