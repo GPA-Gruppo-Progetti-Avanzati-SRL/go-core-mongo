@@ -308,6 +308,14 @@ Errori: `NOT-FOUND` (business) se il nome non è nel registry; `MONGO-EXECAGGR` 
 
 ---
 
+## Errori
+
+Catalogo dei codici in **[ERRORI.md](ERRORI.md)**. Ogni errore che nasce dentro la libreria porta
+`Ambit = coremongo.Ambit` (`"go-core-mongo"`) e un `Code` (`coremongo.CodeFindOne`, `CodeFilter`,
+`CodeBulk`, …) invece di presentarsi come un errore dell'applicazione — i costruttori base di `core`
+riempiono l'ambit con l'`AppName`, cioè con chi *riceve* l'errore. La causa reale resta raggiungibile
+con `errors.Is`/`errors.As`: `mongo.ErrNoDocuments` è conservato anche dentro un `NotFoundError`.
+
 ## Lock distribuito — `locker`
 
 `locker` implementa il [`lock.Locker`](../go-core-app) neutro di go-core-app su MongoDB: documenti
