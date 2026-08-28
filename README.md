@@ -41,6 +41,19 @@ func ProvideServices(cfg *Config) {
 |---------|---------|
 | `WithModes(modes...)` | registra solo quando `core.Mode` è tra i modes indicati; senza opzione registra sempre |
 | `WithAggregations(dir)` | carica le pipeline di aggregation dalla FS indicata (vedi sotto) |
+| `WithAuthorization()` | fornisce l'`authorization.Authorizer` di go-core-app alimentato dalla collection ACL |
+
+`WithAuthorization()` sostituisce il `core.ProvideAs[authorization.Authorizer](mongoauth.NewAuthorizationLut)`
+che l'app faceva a mano in `main.go`: così l'app non importa `go-core-app/authorization` solo per
+nominare un tipo, e soprattutto la LUT **eredita i modes del Module** — a mano era facile scordarselo
+e ritrovarsi la LUT che interroga Mongo anche in un processo worker.
+
+```go
+coremongo.Module(&cfg.Mongo,
+    coremongo.WithAggregations(data.AggregationFiles),
+    coremongo.WithAuthorization(),
+    coremongo.WithModes(engine.Api))
+```
 
 ```yaml
 config:
@@ -71,16 +84,20 @@ La struct di input deve avere i campi taggati con:
 
 - **field**: "nome_campo_mongodb": Il nome del campo in MongoDB.
 - **operator**: "$operatore": L'operatore MongoDB da usare
-  - **operatori supportati**:
-    - ```$eq```
-    - ```$ne```
-    - ```$lt```
-    - ```$lte```
-    - ```$gt```
-    - ```$gte```
-    - ```$in```
-    - ```$nin```
-    - ```$exists```
+- **omitempty**: `"true"`: salta il campo se è a zero-value
+
+**Operatori supportati:**
+
+| Famiglia | Operatori |
+|---|---|
+| confronto | `$eq` `$ne` `$lt` `$lte` `$gt` `$gte` |
+| liste | `$in` `$nin` `$all` |
+| presenza | `$exists` |
+| stringhe | `$startswith` `$istartswith` `$endswith` `$iendswith` `$contains` `$icontains` `$regex` |
+| array | `$size` |
+
+Gli operatori sulle stringhe sono tradotti in `$regex` con l'ancoraggio giusto; le varianti con la
+`i` iniziale sono case-insensitive.
 
 ```go
 Filtro struct {
@@ -114,6 +131,42 @@ if err != nil {
 // }
 ```
 
+
+### CRUD generici — metodi del Service
+
+I CRUD sono **metodi generici di `*coremongo.Service`** (Go 1.27+): il Service è l'unico handle
+Mongo dell'applicazione e viene iniettato da fx. `T` implementa `ICollection` — è da lì che arriva
+la collection.
+
+```go
+// Lettura
+item,  appErr := s.GetObjectById[T](ctx, id)
+item,  appErr := s.GetObjectByFilter[T](ctx, filter)
+items, appErr := s.GetObjectsByFilter[T](ctx, filter)
+items, appErr := s.GetObjectsByFilterSorted[T](ctx, filter, sort)
+items, appErr := s.GetPageByFilter[T](ctx, filter, paging, opts...)
+n,     appErr := s.CountDocuments(ctx, filter)
+
+// Scrittura
+id,   appErr := s.InsertOne[T](ctx, obj, opts...)
+appErr := s.InsertMany[T](ctx, list, opts...)
+appErr := s.UpdateOne(ctx, filter, update, opts...)
+appErr := s.UpdateMany(ctx, filter, update, n)
+appErr := s.ReplaceOne[T](ctx, filter, obj, opts...)
+appErr := s.DeleteOne(ctx, filter, opts...)
+appErr := s.DeleteMany(ctx, filter, opts...)
+
+// Transazioni e sequenze
+appErr := s.ExecTransaction(ctx, func(ctx context.Context) error { ... })
+seq,  appErr := s.GetSequence(ctx, "sequences", "person-id")
+```
+
+I `NotFoundError` conservano `mongo.ErrNoDocuments` come causa: è recuperabile con `errors.Is`
+senza parsare il messaggio.
+
+> **Nota sul linguaggio:** un metodo generico non può implementare un metodo di interfaccia, quindi
+> `*Service` non è assegnabile a un'interfaccia che dichiari questi CRUD. Il data layer dell'app
+> espone i propri metodi concreti (`IData`) e richiama al loro interno quelli del Service.
 
 ### Scritture in batch (BulkWrite)
 
@@ -252,3 +305,42 @@ if err != nil {
 
 Errori: `NOT-FOUND` (business) se il nome non è nel registry; `MONGO-EXECAGGR` e
 `MONGO-EXECAGGR-CUR` (tecnici) su errore del driver o durante la lettura del cursore.
+
+---
+
+## Lock distribuito — `locker`
+
+`locker` implementa il [`lock.Locker`](../go-core-app) neutro di go-core-app su MongoDB: documenti
+di lease con TTL in una collection dedicata (`scheduler_locks`), mutua esclusione via upsert atomico.
+Non serve altra infrastruttura oltre alla connessione Mongo che l'app già usa, e non c'è nessuna
+dipendenza da gocron.
+
+```go
+import mongolocker "github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-mongo/locker"
+
+coremongo.Module(&cfg.Mongo)
+
+batch.Module(&cfg.Batch, Register,
+    batch.WithStore(storemongo.Module),
+    batch.WithLocker(mongolocker.Module),   // mongo-only → niente Redis da deployare
+    // ...
+)
+```
+
+`locker.Module(modes ...string)` è **modes-only**: consuma il `*coremongo.Service` e registra
+`lock.Locker`. La collection non va dichiarata in `collections:` — il locker usa il database grezzo.
+
+Senza opzioni `Acquire` fa un solo tentativo non bloccante con TTL di **30s** e ritorna
+`lock.ErrNotAcquired` in contesa (semantica dispatch-dedup); `lock.WithTries`/`WithRetryDelay`/
+`WithExpiry` e `Handle.Extend` coprono la mutua esclusione di una sezione critica lunga.
+
+---
+
+## Comandi
+
+```bash
+go build ./...
+go test ./...
+go test -race -count=2 ./...
+go vet ./...
+```
