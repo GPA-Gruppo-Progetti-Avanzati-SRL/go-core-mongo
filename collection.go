@@ -323,7 +323,12 @@ func (s *Service) ExecTransaction(ctx context.Context, transaction func(ctx cont
 
 		// Esegue la transazione con il callback
 		if errT := transaction(sessCtx); errT != nil {
-			session.AbortTransaction(sessCtx) // Rollback
+			// Rollback. L'errore che risale è quello della transazione, non quello dell'abort — ma un
+			// abort fallito lascia la transazione aperta fino al timeout del server, e questo è
+			// l'unico punto in cui lo si può sapere.
+			if errAbort := session.AbortTransaction(sessCtx); errAbort != nil {
+				log.Warn().Err(errAbort).Msg("rollback della transazione fallito")
+			}
 			return errT
 		}
 

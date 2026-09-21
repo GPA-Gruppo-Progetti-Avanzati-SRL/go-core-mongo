@@ -82,6 +82,23 @@ func (l *AuthorizationLut) expired(ignoreUpdating bool) bool {
 	return time.Now().Add(-l.minRefresh).After(last)
 }
 
+// refreshAsync lancia un refresh in background per conto di un lettore che ha trovato la LUT
+// scaduta. L'errore non ha un destinatario — il lettore ha già risposto con lo snapshot che aveva —
+// ma non è per questo che si può buttare: dice che quello snapshot resta in uso, cioè che le
+// decisioni di autorizzazione continuano su dati vecchi. `trigger` nomina il lettore, altrimenti dal
+// log non si sa quale strada abbia fatto scattare il refresh; i dettagli del guasto li ha già
+// scritti refresh(), qui si aggiunge la conseguenza.
+//
+// È un metodo e non otto closure perché i siti sono otto: la riga del log va scritta una volta sola.
+func (l *AuthorizationLut) refreshAsync(trigger string) {
+	go func() {
+		if err := l.refresh(); err != nil {
+			log.Warn().Err(err).Str("trigger", trigger).
+				Msg("Authorization LUT: refresh in background fallito, resta lo snapshot precedente")
+		}
+	}()
+}
+
 func (l *AuthorizationLut) refresh() *core.ApplicationError {
 
 	l.mu.Lock()
@@ -343,7 +360,7 @@ func (l *AuthorizationLut) FilterRolesByContext(roles []string, contextId string
 // Deve ricevere allRoles (non filtrati) per fornire visione globale.
 func (l *AuthorizationLut) GetContexts(roles []string) []*authcore.Context {
 	if l.expired(false) {
-		go l.refresh()
+		l.refreshAsync("GetContexts")
 	}
 
 	seen := make(map[string]struct{})
@@ -370,7 +387,7 @@ func (l *AuthorizationLut) GetContexts(roles []string) []*authcore.Context {
 // Match verifica l'autorizzazione per operationId (uso backend go-core-api).
 func (l *AuthorizationLut) Match(roles []string, operationId string) bool {
 	if l.expired(false) {
-		go l.refresh()
+		l.refreshAsync("Match")
 	}
 	for _, rid := range roles {
 		if v, ok := l.roleApis.Load(rid); ok {
@@ -390,7 +407,7 @@ func (l *AuthorizationLut) Match(roles []string, operationId string) bool {
 // Api.Methods vuoto su un nodo significa tutti i metodi.
 func (l *AuthorizationLut) MatchRequest(roles []string, path, method string) bool {
 	if l.expired(false) {
-		go l.refresh()
+		l.refreshAsync("MatchRequest")
 	}
 	for _, rid := range roles {
 		if v, ok := l.roleApis.Load(rid); ok {
@@ -410,7 +427,7 @@ func (l *AuthorizationLut) MatchRequest(roles []string, path, method string) boo
 // Applica il filtro appId solo alle categorie 'action_ui'.
 func (l *AuthorizationLut) GetCapabilities(roles []string, appId string) []string {
 	if l.expired(false) {
-		go l.refresh()
+		l.refreshAsync("GetCapabilities")
 	}
 
 	outSet := make(map[string]struct{})
@@ -435,7 +452,7 @@ func (l *AuthorizationLut) GetCapabilities(roles []string, appId string) []strin
 // abilitate per i ruoli. Non filtra per appId — le api capabilities non sono app-scoped.
 func (l *AuthorizationLut) GetServerCapabilities(roles []string) []string {
 	if l.expired(false) {
-		go l.refresh()
+		l.refreshAsync("GetServerCapabilities")
 	}
 	outSet := make(map[string]struct{})
 	for _, rid := range roles {
@@ -455,7 +472,7 @@ func (l *AuthorizationLut) GetServerCapabilities(roles []string) []string {
 // HasCapability verifica se almeno uno dei ruoli possiede la capability indicata.
 func (l *AuthorizationLut) HasCapability(roles []string, capabilityId string) bool {
 	if l.expired(false) {
-		go l.refresh()
+		l.refreshAsync("HasCapability")
 	}
 
 	for _, rid := range roles {
@@ -472,7 +489,7 @@ func (l *AuthorizationLut) HasCapability(roles []string, capabilityId string) bo
 // Se viene passato un appId, i menu vengono filtrati strettamente per appId.
 func (l *AuthorizationLut) GetPaths(roles []string, appId string) []*authcore.Path {
 	if l.expired(false) {
-		go l.refresh()
+		l.refreshAsync("GetPaths")
 	}
 
 	menusMap := make(map[string]*UINode)
@@ -513,7 +530,7 @@ func (l *AuthorizationLut) GetPaths(roles []string, appId string) []*authcore.Pa
 // Deve ricevere allRoles (non filtrati per contesto).
 func (l *AuthorizationLut) GetApps(roles []string, contextID string) []*authcore.App {
 	if l.expired(false) {
-		go l.refresh()
+		l.refreshAsync("GetApps")
 	}
 
 	// Ruoli filtrati per contesto: usati per determinare le app accessibili
