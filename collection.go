@@ -8,6 +8,7 @@ import (
 
 	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app"
 	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app/page"
+	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-mongo/mongoutil"
 	"github.com/rs/zerolog/log"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -113,7 +114,7 @@ func (s *Service) GetObjectsByFilter[T ICollection](ctx context.Context, filter 
 	if err != nil {
 		return nil, techErr(CodeGetObjectsFind).WithCause(err)
 	}
-	defer cur.Close(ctx)
+	defer mongoutil.CloseCursor(ctx, cur, "GetObjectsByFilter")
 	results := make([]*T, 0)
 	errCur := cur.All(ctx, &results)
 	if errCur != nil {
@@ -139,7 +140,7 @@ func (s *Service) GetObjectsByFilterSorted[T ICollection](ctx context.Context, f
 	if err != nil {
 		return nil, techErr(CodeGetObjectsSorted).WithCause(err)
 	}
-	defer cur.Close(ctx)
+	defer mongoutil.CloseCursor(ctx, cur, "GetObjectsByFilterSorted")
 	results := make([]*T, 0)
 	errCur := cur.All(ctx, &results)
 	if errCur != nil {
@@ -369,7 +370,7 @@ func (s *Service) GetIds(ctx context.Context, filter string, collectionName stri
 	if err != nil {
 		return nil, techErr(CodeFind).WithCause(err)
 	}
-	defer cursor.Close(ctx)
+	defer mongoutil.CloseCursor(ctx, cursor, "GetIds")
 
 	var ids []string
 	for cursor.Next(ctx) {
@@ -416,7 +417,7 @@ func (s *Service) GetPageByFilter[T ICollection](ctx context.Context, filter IFi
 	if errFind != nil {
 		return nil, techErr(CodeFind).WithCause(errFind)
 	}
-	defer cursor.Close(ctx)
+	defer mongoutil.CloseCursor(ctx, cursor, "GetPageByFilter")
 
 	var results []T
 	if errDecode := cursor.All(ctx, &results); errDecode != nil {

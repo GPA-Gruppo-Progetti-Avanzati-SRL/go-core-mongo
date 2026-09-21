@@ -9,6 +9,7 @@ import (
 
 	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app"
 	authcore "github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app/authorization"
+	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-mongo/mongoutil"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -221,7 +222,7 @@ func (l *AuthorizationLut) refresh() *core.ApplicationError {
 		log.Error().Err(aggErr).Msg("Authorization LUT aggregation error")
 		return core.TechnicalError().WithAmbit(ambit).WithCode(codeAclAggregate).WithCause(aggErr)
 	}
-	defer func() { _ = cur.Close(ctx) }()
+	defer mongoutil.CloseCursor(ctx, cur, "AuthorizationLut.refresh/acl")
 	var res []*roleFunctionsAggRes
 	if err := cur.All(ctx, &res); err != nil {
 		log.Error().Err(err).Msg("Authorization LUT cursor error")
@@ -277,7 +278,7 @@ func (l *AuthorizationLut) refresh() *core.ApplicationError {
 	// Caricamento App catalog
 	appCur, appErr := coll.Find(ctx, bson.M{"_et": "APP"})
 	if appErr == nil {
-		defer func() { _ = appCur.Close(ctx) }()
+		defer mongoutil.CloseCursor(ctx, appCur, "AuthorizationLut.refresh/apps")
 		for appCur.Next(ctx) {
 			var a App
 			if err := appCur.Decode(&a); err == nil && a.ID != "" {
@@ -289,7 +290,7 @@ func (l *AuthorizationLut) refresh() *core.ApplicationError {
 	// Caricamento Context catalog
 	ctxCur, ctxErr := coll.Find(ctx, bson.M{"_et": "CONTEXT"})
 	if ctxErr == nil {
-		defer func() { _ = ctxCur.Close(ctx) }()
+		defer mongoutil.CloseCursor(ctx, ctxCur, "AuthorizationLut.refresh/contexts")
 		for ctxCur.Next(ctx) {
 			var c MongoContext
 			if err := ctxCur.Decode(&c); err == nil && c.ID != "" {

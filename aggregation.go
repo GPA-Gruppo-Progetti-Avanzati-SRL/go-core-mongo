@@ -10,6 +10,7 @@ import (
 
 	"github.com/rs/zerolog"
 
+	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-mongo/mongoutil"
 	"github.com/rs/zerolog/log"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	"gopkg.in/yaml.v3"
@@ -242,12 +243,7 @@ func (s *Service) ExecuteAggregation[T any](ctx context.Context, name string, pa
 		}
 		return nil, techErr(CodeExecAggregation).WithCause(errAgg)
 	}
-	defer func() {
-		ccerr := cur.Close(ctx)
-		if ccerr != nil {
-			log.Error().Err(ccerr).Msg("close cursor error")
-		}
-	}()
+	defer mongoutil.CloseCursor(ctx, cur, "ExecuteAggregation")
 	results := make([]*T, 0)
 	if errCur := cur.All(ctx, &results); errCur != nil {
 		return nil, techErr(CodeExecAggregationCur).WithCause(errCur)

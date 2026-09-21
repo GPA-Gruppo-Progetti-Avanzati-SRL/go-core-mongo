@@ -308,6 +308,30 @@ Errori: `NOT-FOUND` (business) se il nome non è nel registry; `MONGO-EXECAGGR` 
 
 ---
 
+## Chiusura dei cursori — `mongoutil.CloseCursor`
+
+I CRUD del `Service` il cursore lo chiudono da sé: questo serve a chi ne apre uno a mano (una query
+bun-style sul `*mongo.Collection`, un feed, un job di retention).
+
+```go
+cur, err := coll.Find(ctx, filter)
+if err != nil { ... }
+defer mongoutil.CloseCursor(ctx, cur, "PurgeTaskLogs")   // `what` = il sito che sta leggendo
+```
+
+Una `Close` fallita non offre un'alternativa da scegliere — la lettura è già finita — ma è l'unico
+segnale che quella query non si è chiusa pulita: `defer cur.Close(ctx)` lo butta via (e `errcheck` lo
+segnala), `_ = cur.Close(ctx)` lo butta via in silenzio. L'helper lo logga a `Warn` con il nome del
+sito, che è ciò che rende il warning leggibile quando arriva da una libreria.
+
+`mongoutil` è un package **foglia**: non importa nulla di go-core-mongo. Serve così perché i suoi
+utenti stanno sui due lati di una dipendenza che non si può invertire — il package root importa
+`authorization` per esporne l'Option, quindi `authorization` non può importare il root, ed è proprio
+lì che i cursori sono tre. Per lo stesso motivo è usabile dalle altre librerie go-core
+(go-core-batch ci passa i suoi sette `defer`).
+
+---
+
 ## Errori
 
 Catalogo dei codici in **[ERRORI.md](ERRORI.md)**. Ogni errore che nasce dentro la libreria porta
