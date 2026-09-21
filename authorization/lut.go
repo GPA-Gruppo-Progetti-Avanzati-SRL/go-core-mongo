@@ -65,7 +65,15 @@ func NewAuthorizationLut(lc fx.Lifecycle, ls Collections) *AuthorizationLut {
 		OnStart: func(ctx context.Context) error {
 			l.lastUpdate.Store(time.Unix(0, 0))
 			log.Info().Msgf("INIT Authorization LUT: refresh=%s", refresh)
-			l.refresh()
+			// L'errore NON ferma l'avvio: scelta deliberata. La LUT si ricarica da sé al primo
+			// lettore che la trova scaduta (refreshAsync), quindi un Mongo lento o momentaneamente
+			// irraggiungibile al boot non deve impedire al processo di partire. Ma finché quel
+			// refresh non riesce la LUT è VUOTA, cioè si nega tutto: è il momento peggiore in cui
+			// non lasciare traccia, ed è la ragione per cui qui si logga invece di scartare.
+			if err := l.refresh(); err != nil {
+				log.Error().Err(err).
+					Msg("Authorization LUT: caricamento iniziale fallito, la LUT parte vuota (nessuna autorizzazione concessa) finché un refresh non riesce")
+			}
 
 			return nil
 		},
