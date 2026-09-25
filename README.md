@@ -336,33 +336,15 @@ Catalogo dei codici in **[ERRORI.md](ERRORI.md)**. Ogni errore che nasce dentro 
 riempiono l'ambit con l'`AppName`, cioè con chi *riceve* l'errore. La causa reale resta raggiungibile
 con `errors.Is`/`errors.As`: `mongo.ErrNoDocuments` è conservato anche dentro un `NotFoundError`.
 
-## Lock distribuito — `locker`
+## Lock distribuito
 
-`locker` implementa il [`lock.Locker`](../go-core-app) neutro di go-core-app su MongoDB: documenti
-di lease con TTL in una collection dedicata (`scheduler_locks`), mutua esclusione via upsert atomico.
-Non serve altra infrastruttura oltre alla connessione Mongo che l'app già usa, e non c'è nessuna
-dipendenza da gocron.
+Non è più qui: il backend Mongo del lock è **`go-core-locker/mongostore`**, che consuma il
+`*coremongo.Service` fornito da questo modulo.
 
 ```go
-import mongolocker "github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-mongo/locker"
-
 coremongo.Module(&cfg.Mongo)
-
-batch.Module(&cfg.Batch, Register,
-    batch.WithStore(storemongo.Module),
-    batch.WithLocker(mongolocker.Module),   // mongo-only → niente Redis da deployare
-    // ...
-)
+corelock.Module(&cfg.Lock, corelock.WithBackend(mongostore.Module))
 ```
-
-`locker.Module(modes ...string)` è **modes-only**: consuma il `*coremongo.Service` e registra
-`lock.Locker`. La collection non va dichiarata in `collections:` — il locker usa il database grezzo.
-
-Senza opzioni `Acquire` fa un solo tentativo non bloccante con TTL di **30s** e ritorna
-`lock.ErrNotAcquired` in contesa (semantica dispatch-dedup); `lock.WithTries`/`WithRetryDelay`/
-`WithExpiry` e `Handle.Extend` coprono la mutua esclusione di una sezione critica lunga.
-
----
 
 ## Comandi
 
