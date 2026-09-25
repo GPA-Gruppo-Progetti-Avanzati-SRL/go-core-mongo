@@ -14,7 +14,8 @@ Di default permette all'applicazione di esporre le metriche del database.
 
 `coremongo.Module` è l'unico entry-point: supplisce la `Config` e fornisce
 `*coremongo.Service`, l'unico handle Mongo dell'applicazione (connessione, CRUD
-generici, aggregation). Lo consumano direttamente anche `locker`, `authorization` e
+
+generici, aggregation). Lo consumano direttamente anche `locker` e
 `go-core-batch/store/mongostore`: la `mongolks.LinkedService` resta un dettaglio
 interno e non va iniettata in giro.
 
@@ -41,17 +42,14 @@ func ProvideServices(cfg *Config) {
 |---------|---------|
 | `WithModes(modes...)` | registra solo quando `core.Mode` è tra i modes indicati; senza opzione registra sempre |
 | `WithAggregations(dir)` | carica le pipeline di aggregation dalla FS indicata (vedi sotto) |
-| `WithAuthorization()` | fornisce l'`authorization.Authorizer` di go-core-app alimentato dalla collection ACL |
 
-`WithAuthorization()` sostituisce il `core.ProvideAs[authorization.Authorizer](mongoauth.NewAuthorizationLut)`
-che l'app faceva a mano in `main.go`: così l'app non importa `go-core-app/authorization` solo per
-nominare un tipo, e soprattutto la LUT **eredita i modes del Module** — a mano era facile scordarselo
-e ritrovarsi la LUT che interroga Mongo anche in un processo worker.
+> **L'autorizzazione non è più qui.** `WithAuthorization()` non esiste: l'ACL su Mongo lo legge
+> `go-core-auth/mongosource`, che si sceglie con `coreauth.WithSource(mongosource.Module)` e consuma
+> il `*coremongo.Service` che questo modulo fornisce.
 
 ```go
 coremongo.Module(&cfg.Mongo,
     coremongo.WithAggregations(data.AggregationFiles),
-    coremongo.WithAuthorization(),
     coremongo.WithModes(engine.Api))
 ```
 
@@ -324,10 +322,8 @@ segnale che quella query non si è chiusa pulita: `defer cur.Close(ctx)` lo butt
 segnala), `_ = cur.Close(ctx)` lo butta via in silenzio. L'helper lo logga a `Warn` con il nome del
 sito, che è ciò che rende il warning leggibile quando arriva da una libreria.
 
-`mongoutil` è un package **foglia**: non importa nulla di go-core-mongo. Serve così perché i suoi
-utenti stanno sui due lati di una dipendenza che non si può invertire — il package root importa
-`authorization` per esporne l'Option, quindi `authorization` non può importare il root, ed è proprio
-lì che i cursori sono tre. Per lo stesso motivo è usabile dalle altre librerie go-core
+`mongoutil` è un package **foglia**: non importa nulla di go-core-mongo. Serve così perché è usabile
+dalle altre librerie go-core senza trascinarle dentro il modulo
 (go-core-batch ci passa i suoi sette `defer`).
 
 ---
