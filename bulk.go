@@ -3,7 +3,8 @@ package coremongo
 import (
 	"context"
 
-	core "github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app"
+	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app"
+
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
@@ -75,7 +76,7 @@ func BulkOrderedIf(compacted bool) options.Lister[options.BulkWriteOptions] {
 // senza nulla da scrivere è un no-op, non un errore — oppure insieme a un errore. Un nil è quindi
 // distinguibile da un batch eseguito i cui contatori sono tutti a zero (tutte operazioni a vuoto), e
 // va gestito dal chiamante prima di leggere i contatori.
-func (s *Service) BulkWrite[T ICollection](ctx context.Context, models []mongo.WriteModel, opts ...options.Lister[options.BulkWriteOptions]) (*BulkResult, *core.ApplicationError) {
+func (s *Service) BulkWrite[T ICollection](ctx context.Context, models []mongo.WriteModel, opts ...options.Lister[options.BulkWriteOptions]) (*BulkResult, *core.Error) {
 	if len(models) == 0 {
 		return nil, nil
 	}
@@ -87,7 +88,7 @@ func (s *Service) BulkWrite[T ICollection](ctx context.Context, models []mongo.W
 	}
 	res, err := coll.BulkWrite(ctx, models, opts...)
 	if err != nil {
-		return nil, liberr.Tech(CodeBulk).WithCause(err)
+		return nil, errs.Tech(CodeBulk).WithCause(err)
 	}
 	return &BulkResult{
 		Inserted:  res.InsertedCount,

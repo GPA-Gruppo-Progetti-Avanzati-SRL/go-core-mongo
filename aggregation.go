@@ -8,6 +8,8 @@ import (
 	"path"
 	"strings"
 
+	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app"
+
 	"github.com/rs/zerolog"
 
 	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-mongo/mongoutil"
@@ -15,7 +17,6 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	"gopkg.in/yaml.v3"
 
-	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 )
@@ -99,7 +100,7 @@ func loadAggregations(dir fs.FS) (aggregations, error) {
 }
 
 // pipeline genera la mongo.Pipeline di a, risolvendo i parametri per chiave di stage.
-func (r aggregations) pipeline(a *Aggregation, params map[string]any) (mongo.Pipeline, *core.ApplicationError) {
+func (r aggregations) pipeline(a *Aggregation, params map[string]any) (mongo.Pipeline, *core.Error) {
 
 	mp := make(mongo.Pipeline, 0)
 	for _, stage := range a.Stages {
@@ -107,7 +108,7 @@ func (r aggregations) pipeline(a *Aggregation, params map[string]any) (mongo.Pip
 		fparams := params[stage.Key]
 		gs, ok := stageGenerators[stage.Operator]
 		if !ok {
-			return nil, liberr.Tech(CodeAggregationOperator).WithMessage("operator " + stage.Operator + " is not supported")
+			return nil, errs.Tech(CodeAggregationOperator).WithMessage("operator " + stage.Operator + " is not supported")
 		}
 		s, errG := gs(r, stage.Operator, stage.Args, fparams)
 		if errG != nil {
@@ -122,18 +123,18 @@ func (r aggregations) pipeline(a *Aggregation, params map[string]any) (mongo.Pip
 
 // generateStage genera un singolo stage. Il registry serve solo a unionWith, che
 // compone per nome un'altra pipeline dello stesso Service.
-type generateStage func(r aggregations, function string, args map[string]any, params any) (bson.D, *core.ApplicationError)
+type generateStage func(r aggregations, function string, args map[string]any, params any) (bson.D, *core.Error)
 
-func unionWith(r aggregations, function string, args map[string]any, params any) (bson.D, *core.ApplicationError) {
+func unionWith(r aggregations, function string, args map[string]any, params any) (bson.D, *core.Error) {
 
 	pipelineName, okP := args["pipeline"].(string)
 	if !okP {
-		return nil, liberr.Tech(CodeAggregationNotFound).
+		return nil, errs.Tech(CodeAggregationNotFound).
 			WithMessage("unionWith: argomento 'pipeline' assente o non stringa")
 	}
 	a, okA := r[pipelineName]
 	if !okA {
-		return nil, liberr.Tech(CodeAggregationNotFound).
+		return nil, errs.Tech(CodeAggregationNotFound).
 			WithMessage(fmt.Sprintf("unionWith: aggregation '%s' non configurata", pipelineName))
 	}
 
@@ -158,52 +159,52 @@ func unionWith(r aggregations, function string, args map[string]any, params any)
 
 }
 
-func simpleParams(r aggregations, function string, args map[string]any, params any) (bson.D, *core.ApplicationError) {
+func simpleParams(r aggregations, function string, args map[string]any, params any) (bson.D, *core.Error) {
 	return bson.D{{Key: function, Value: params}}, nil
 }
 
-func simpleArgs(r aggregations, function string, args map[string]any, params any) (bson.D, *core.ApplicationError) {
+func simpleArgs(r aggregations, function string, args map[string]any, params any) (bson.D, *core.Error) {
 	return bson.D{{Key: function, Value: args}}, nil
 }
-func match(r aggregations, function string, args map[string]any, params any) (bson.D, *core.ApplicationError) {
+func match(r aggregations, function string, args map[string]any, params any) (bson.D, *core.Error) {
 	if params == nil {
 		return simpleArgs(r, function, args, params)
 	}
 	p, ok := params.(IFilter)
 	if !ok {
-		return nil, liberr.Tech(CodeAggregationFilter).WithMessage("Filtro non di tipo IFilter")
+		return nil, errs.Tech(CodeAggregationFilter).WithMessage("Filtro non di tipo IFilter")
 	}
 
 	filterM, err := buildFilter(p)
 
 	if err != nil {
-		return nil, liberr.Tech(CodeFilter).WithCause(err)
+		return nil, errs.Tech(CodeFilter).WithCause(err)
 	}
 	return bson.D{{Key: function, Value: filterM}}, nil
 }
 
-func sort(r aggregations, function string, args map[string]any, params any) (bson.D, *core.ApplicationError) {
+func sort(r aggregations, function string, args map[string]any, params any) (bson.D, *core.Error) {
 	sortBson := bson.D{}
 	sortEl, ok := args["order"].([]any)
 	if !ok {
-		return nil, liberr.Tech(CodeAggregationSort).WithMessage("order non trovato")
+		return nil, errs.Tech(CodeAggregationSort).WithMessage("order non trovato")
 	}
 
 	for _, sortField := range sortEl {
 		sortFi, sok := sortField.(map[string]any)
 		if !sok {
-			return nil, liberr.Tech(CodeAggregationSort).WithMessage("no sort structure")
+			return nil, errs.Tech(CodeAggregationSort).WithMessage("no sort structure")
 
 		}
 
 		sortC, cok := sortFi["field"].(string)
 		if !cok {
-			return nil, liberr.Tech(CodeAggregationSort).WithMessage("no sort field in sort")
+			return nil, errs.Tech(CodeAggregationSort).WithMessage("no sort field in sort")
 
 		}
 		sortV, vok := sortFi["verse"].(string)
 		if !vok {
-			return nil, liberr.Tech(CodeAggregationSort).WithMessage("no  sort verse in sort")
+			return nil, errs.Tech(CodeAggregationSort).WithMessage("no  sort verse in sort")
 
 		}
 		order := 1 // Default to ascending
@@ -216,10 +217,10 @@ func sort(r aggregations, function string, args map[string]any, params any) (bso
 	return bson.D{{Key: function, Value: sortBson}}, nil
 }
 
-func (s *Service) ExecuteAggregation[T any](ctx context.Context, name string, params map[string]any, opts ...options.Lister[options.AggregateOptions]) ([]*T, *core.ApplicationError) {
+func (s *Service) ExecuteAggregation[T any](ctx context.Context, name string, params map[string]any, opts ...options.Lister[options.AggregateOptions]) ([]*T, *core.Error) {
 	aggregation, ok := s.aggregations[name]
 	if !ok {
-		return nil, liberr.Tech(CodeAggregationNotFound).
+		return nil, errs.Tech(CodeAggregationNotFound).
 			WithMessage(fmt.Sprintf("aggregation '%s' non configurata", name))
 	}
 	mp, err := s.aggregations.pipeline(aggregation, params)
@@ -239,14 +240,14 @@ func (s *Service) ExecuteAggregation[T any](ctx context.Context, name string, pa
 	cur, errAgg := coll.Aggregate(ctx, mp, opts...)
 	if errAgg != nil {
 		if errors.Is(errAgg, mongo.ErrNoDocuments) {
-			return nil, liberr.NotFound().WithCause(errAgg)
+			return nil, errs.NotFound().WithCause(errAgg)
 		}
-		return nil, liberr.Tech(CodeExecAggregation).WithCause(errAgg)
+		return nil, errs.Tech(CodeExecAggregation).WithCause(errAgg)
 	}
 	defer mongoutil.CloseCursor(ctx, cur, "ExecuteAggregation")
 	results := make([]*T, 0)
 	if errCur := cur.All(ctx, &results); errCur != nil {
-		return nil, liberr.Tech(CodeExecAggregationCur).WithCause(errCur)
+		return nil, errs.Tech(CodeExecAggregationCur).WithCause(errCur)
 	}
 
 	return results, nil

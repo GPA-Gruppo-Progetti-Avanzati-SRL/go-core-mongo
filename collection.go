@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app"
+
 	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app/page"
 	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-mongo/mongoutil"
 	"github.com/rs/zerolog/log"
@@ -23,20 +24,20 @@ type ICollection interface {
 // codeCollectionNotFound è il codice applicativo per una collection richiesta ma non presente in
 // collections: della config. mongolks.LinkedService.GetCollection non propaga errore in quel caso —
 // logga e ritorna nil — quindi senza il controllo la prima chiamata sul *mongo.Collection nil
-// andrebbe in panic invece di fallire con un ApplicationError.
+// andrebbe in panic invece di fallire con un core.Error.
 
 // collection risolve la collection e verifica che GetCollection non abbia ritornato nil, così
-// ogni CRUD generico fallisce con un ApplicationError invece di panicare su una collection nil.
-func (s *Service) collection(collectionId string, wc string) (*mongo.Collection, *core.ApplicationError) {
+// ogni CRUD generico fallisce con un core.Error invece di panicare su una collection nil.
+func (s *Service) collection(collectionId string, wc string) (*mongo.Collection, *core.Error) {
 	coll := s.GetCollection(collectionId, wc)
 	if coll == nil {
-		return nil, liberr.Tech(CodeCollectionNotFound).
+		return nil, errs.Tech(CodeCollectionNotFound).
 			WithMessage(fmt.Sprintf("collection '%s' non configurata", collectionId))
 	}
 	return coll, nil
 }
 
-func (s *Service) GetObjectById[T ICollection](ctx context.Context, id string) (*T, *core.ApplicationError) {
+func (s *Service) GetObjectById[T ICollection](ctx context.Context, id string) (*T, *core.Error) {
 	var result T
 
 	collection := result.GetCollectionName(ctx)
@@ -50,20 +51,20 @@ func (s *Service) GetObjectById[T ICollection](ctx context.Context, id string) (
 	err := coll.FindOne(ctx, filter).Decode(&result)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			return nil, liberr.NotFound().WithCause(err)
+			return nil, errs.NotFound().WithCause(err)
 		}
-		return nil, liberr.Tech(CodeFindOne).WithCause(err)
+		return nil, errs.Tech(CodeFindOne).WithCause(err)
 	}
 	return &result, nil
 
 }
 
-func (s *Service) CountDocuments(ctx context.Context, filter IFilter) (int64, *core.ApplicationError) {
+func (s *Service) CountDocuments(ctx context.Context, filter IFilter) (int64, *core.Error) {
 
 	collection := filter.GetFilterCollectionName(ctx)
 	filterB, errB := buildFilter(filter)
 	if errB != nil {
-		return 0, liberr.Tech(CodeFilter).WithCause(errB)
+		return 0, errs.Tech(CodeFilter).WithCause(errB)
 	}
 	coll, collErr := s.collection(collection, "")
 	if collErr != nil {
@@ -71,18 +72,18 @@ func (s *Service) CountDocuments(ctx context.Context, filter IFilter) (int64, *c
 	}
 	i, err := coll.CountDocuments(ctx, filterB)
 	if err != nil {
-		return 0, liberr.Tech(CodeCount).WithCause(err)
+		return 0, errs.Tech(CodeCount).WithCause(err)
 	}
 	return i, nil
 
 }
 
-func (s *Service) GetObjectByFilter[T ICollection](ctx context.Context, filter IFilter) (*T, *core.ApplicationError) {
+func (s *Service) GetObjectByFilter[T ICollection](ctx context.Context, filter IFilter) (*T, *core.Error) {
 	var obj T
 	collection := obj.GetCollectionName(ctx)
 	filterB, errB := buildFilter(filter)
 	if errB != nil {
-		return nil, liberr.Tech(CodeFilter).WithCause(errB)
+		return nil, errs.Tech(CodeFilter).WithCause(errB)
 	}
 	coll, collErr := s.collection(collection, "")
 	if collErr != nil {
@@ -91,20 +92,20 @@ func (s *Service) GetObjectByFilter[T ICollection](ctx context.Context, filter I
 	err := coll.FindOne(ctx, filterB).Decode(&obj)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			return nil, liberr.NotFound().WithCause(err)
+			return nil, errs.NotFound().WithCause(err)
 		}
-		return nil, liberr.Tech(CodeFindOne).WithCause(err)
+		return nil, errs.Tech(CodeFindOne).WithCause(err)
 	}
 	return &obj, nil
 
 }
 
-func (s *Service) GetObjectsByFilter[T ICollection](ctx context.Context, filter IFilter) ([]*T, *core.ApplicationError) {
+func (s *Service) GetObjectsByFilter[T ICollection](ctx context.Context, filter IFilter) ([]*T, *core.Error) {
 	var obj T
 	collection := obj.GetCollectionName(ctx)
 	filterB, errB := buildFilter(filter)
 	if errB != nil {
-		return nil, liberr.Tech(CodeFilter).WithCause(errB)
+		return nil, errs.Tech(CodeFilter).WithCause(errB)
 	}
 	coll, collErr := s.collection(collection, "")
 	if collErr != nil {
@@ -112,24 +113,24 @@ func (s *Service) GetObjectsByFilter[T ICollection](ctx context.Context, filter 
 	}
 	cur, err := coll.Find(ctx, filterB)
 	if err != nil {
-		return nil, liberr.Tech(CodeGetObjectsFind).WithCause(err)
+		return nil, errs.Tech(CodeGetObjectsFind).WithCause(err)
 	}
 	defer mongoutil.CloseCursor(ctx, cur, "GetObjectsByFilter")
 	results := make([]*T, 0)
 	errCur := cur.All(ctx, &results)
 	if errCur != nil {
-		return nil, liberr.Tech(CodeGetObjectsCursor).WithCause(errCur)
+		return nil, errs.Tech(CodeGetObjectsCursor).WithCause(errCur)
 	}
 	return results, nil
 
 }
 
-func (s *Service) GetObjectsByFilterSorted[T ICollection](ctx context.Context, filter IFilter, sort page.SortRequest) ([]*T, *core.ApplicationError) {
+func (s *Service) GetObjectsByFilterSorted[T ICollection](ctx context.Context, filter IFilter, sort page.SortRequest) ([]*T, *core.Error) {
 	var obj T
 	collection := obj.GetCollectionName(ctx)
 	filterB, errB := buildFilter(filter)
 	if errB != nil {
-		return nil, liberr.Tech(CodeFilter).WithCause(errB)
+		return nil, errs.Tech(CodeFilter).WithCause(errB)
 	}
 	coll, collErr := s.collection(collection, "")
 	if collErr != nil {
@@ -138,19 +139,19 @@ func (s *Service) GetObjectsByFilterSorted[T ICollection](ctx context.Context, f
 	findOptions := options.Find().SetSort(SortToBson(sort))
 	cur, err := coll.Find(ctx, filterB, findOptions)
 	if err != nil {
-		return nil, liberr.Tech(CodeGetObjectsSorted).WithCause(err)
+		return nil, errs.Tech(CodeGetObjectsSorted).WithCause(err)
 	}
 	defer mongoutil.CloseCursor(ctx, cur, "GetObjectsByFilterSorted")
 	results := make([]*T, 0)
 	errCur := cur.All(ctx, &results)
 	if errCur != nil {
-		return nil, liberr.Tech(CodeGetObjectsSorted).WithCause(errCur)
+		return nil, errs.Tech(CodeGetObjectsSorted).WithCause(errCur)
 	}
 	return results, nil
 
 }
 
-func (s *Service) InsertOne[T ICollection](ctx context.Context, obj T, opts ...options.Lister[options.InsertOneOptions]) (any, *core.ApplicationError) {
+func (s *Service) InsertOne[T ICollection](ctx context.Context, obj T, opts ...options.Lister[options.InsertOneOptions]) (any, *core.Error) {
 
 	collection, collErr := s.collection(obj.GetCollectionName(ctx), "")
 	if collErr != nil {
@@ -159,15 +160,15 @@ func (s *Service) InsertOne[T ICollection](ctx context.Context, obj T, opts ...o
 	res, errIns := collection.InsertOne(ctx, obj, opts...)
 
 	if errIns != nil {
-		return nil, liberr.Tech(CodeInsert).WithCause(errIns)
+		return nil, errs.Tech(CodeInsert).WithCause(errIns)
 	}
 	if res.InsertedID == nil {
-		return nil, liberr.Tech(CodeInsertNoID).WithMessage("insert eseguita ma senza InsertedID")
+		return nil, errs.Tech(CodeInsertNoID).WithMessage("insert eseguita ma senza InsertedID")
 	}
 	return res.InsertedID, nil
 }
 
-func (s *Service) InsertMany[T ICollection](ctx context.Context, list []T, opts ...options.Lister[options.InsertManyOptions]) *core.ApplicationError {
+func (s *Service) InsertMany[T ICollection](ctx context.Context, list []T, opts ...options.Lister[options.InsertManyOptions]) *core.Error {
 	if len(list) == 0 {
 		return nil
 	}
@@ -181,21 +182,21 @@ func (s *Service) InsertMany[T ICollection](ctx context.Context, list []T, opts 
 
 	res, errIns := collection.InsertMany(ctx, list, opts...)
 	if errIns != nil {
-		return liberr.Tech(CodeInsert).WithCause(errIns)
+		return errs.Tech(CodeInsert).WithCause(errIns)
 	}
 	if len(res.InsertedIDs) != len(list) {
 		message := fmt.Sprintf("Mismatch insert %s requested %d vs inserted %d ", name, len(list), len(res.InsertedIDs))
 		log.Error().Msg(message)
-		return liberr.Tech(CodeInsertMismatch).WithMessage(message)
+		return errs.Tech(CodeInsertMismatch).WithMessage(message)
 	}
 	return nil
 }
 
-func (s *Service) UpdateOne(ctx context.Context, filter IFilter, update bson.M, opts ...options.Lister[options.UpdateOneOptions]) *core.ApplicationError {
+func (s *Service) UpdateOne(ctx context.Context, filter IFilter, update bson.M, opts ...options.Lister[options.UpdateOneOptions]) *core.Error {
 
 	filterB, errB := buildFilter(filter)
 	if errB != nil {
-		return liberr.Tech(CodeFilter).WithCause(errB)
+		return errs.Tech(CodeFilter).WithCause(errB)
 	}
 	collectionNotifiche, collErr := s.collection(filter.GetFilterCollectionName(ctx), "")
 	if collErr != nil {
@@ -204,20 +205,20 @@ func (s *Service) UpdateOne(ctx context.Context, filter IFilter, update bson.M, 
 	res, err := collectionNotifiche.UpdateOne(ctx, filterB, update, opts...)
 	if err != nil {
 		log.Error().Err(err).Msgf("Impossibile aggiornare %s %s", filter.GetFilterCollectionName(ctx), err.Error())
-		return liberr.Tech(CodeUpdate).WithCause(err)
+		return errs.Tech(CodeUpdate).WithCause(err)
 	}
 	if res.ModifiedCount != 1 && res.UpsertedCount != 1 {
 		log.Error().Err(err).Msg("Aggiornamento incoerente")
-		return liberr.Tech(CodeInconsistent).WithMessage("aggiornamento incoerente")
+		return errs.Tech(CodeInconsistent).WithMessage("aggiornamento incoerente")
 	}
 	return nil
 }
 
-func (s *Service) UpdateMany(ctx context.Context, filter IFilter, update bson.M, len int) *core.ApplicationError {
+func (s *Service) UpdateMany(ctx context.Context, filter IFilter, update bson.M, len int) *core.Error {
 
 	filterB, errB := buildFilter(filter)
 	if errB != nil {
-		return liberr.Tech(CodeFilter).WithCause(errB)
+		return errs.Tech(CodeFilter).WithCause(errB)
 	}
 	collectionNotifiche, collErr := s.collection(filter.GetFilterCollectionName(ctx), "")
 	if collErr != nil {
@@ -226,20 +227,20 @@ func (s *Service) UpdateMany(ctx context.Context, filter IFilter, update bson.M,
 	res, err := collectionNotifiche.UpdateMany(ctx, filterB, update)
 	if err != nil {
 		log.Error().Err(err).Msgf("Impossibile aggiornare %s %s", filter.GetFilterCollectionName(ctx), err.Error())
-		return liberr.Tech(CodeUpdate).WithCause(err)
+		return errs.Tech(CodeUpdate).WithCause(err)
 	}
 	if res.ModifiedCount != int64(len) {
 		log.Error().Err(err).Msg("Aggiornamento incoerente")
-		return liberr.Tech(CodeInconsistent).WithMessage("aggiornamento incoerente")
+		return errs.Tech(CodeInconsistent).WithMessage("aggiornamento incoerente")
 	}
 	return nil
 }
 
-func (s *Service) ReplaceOne[T ICollection](ctx context.Context, filter IFilter, obj ICollection, ro ...options.Lister[options.ReplaceOptions]) *core.ApplicationError {
+func (s *Service) ReplaceOne[T ICollection](ctx context.Context, filter IFilter, obj ICollection, ro ...options.Lister[options.ReplaceOptions]) *core.Error {
 
 	filterB, errB := buildFilter(filter)
 	if errB != nil {
-		return liberr.Tech(CodeFilter).WithCause(errB)
+		return errs.Tech(CodeFilter).WithCause(errB)
 	}
 	collectionNotifiche, collErr := s.collection(obj.GetCollectionName(ctx), "")
 	if collErr != nil {
@@ -248,20 +249,20 @@ func (s *Service) ReplaceOne[T ICollection](ctx context.Context, filter IFilter,
 	res, err := collectionNotifiche.ReplaceOne(ctx, filterB, obj, ro...)
 	if err != nil {
 		log.Error().Err(err).Msgf("Impossibile replace %s %s", obj.GetCollectionName(ctx), err.Error())
-		return liberr.Tech(CodeReplace).WithCause(err)
+		return errs.Tech(CodeReplace).WithCause(err)
 	}
 	if res.ModifiedCount != 1 && res.UpsertedCount != 1 {
 		log.Error().Err(err).Msg("Aggiornamento incoerente")
-		return liberr.Tech(CodeInconsistent).WithMessage("aggiornamento incoerente")
+		return errs.Tech(CodeInconsistent).WithMessage("aggiornamento incoerente")
 	}
 	return nil
 }
 
-func (s *Service) DeleteOne(ctx context.Context, filter IFilter, ro ...options.Lister[options.DeleteOneOptions]) *core.ApplicationError {
+func (s *Service) DeleteOne(ctx context.Context, filter IFilter, ro ...options.Lister[options.DeleteOneOptions]) *core.Error {
 
 	filterB, errB := buildFilter(filter)
 	if errB != nil {
-		return liberr.Tech(CodeFilter).WithCause(errB)
+		return errs.Tech(CodeFilter).WithCause(errB)
 	}
 	collectionNotifiche, collErr := s.collection(filter.GetFilterCollectionName(ctx), "")
 	if collErr != nil {
@@ -270,24 +271,24 @@ func (s *Service) DeleteOne(ctx context.Context, filter IFilter, ro ...options.L
 	res, err := collectionNotifiche.DeleteOne(ctx, filterB, ro...)
 	if err != nil {
 		log.Error().Err(err).Msgf("Impossibile rimuovere %s %s", filter.GetFilterCollectionName(ctx), err.Error())
-		return liberr.Tech(CodeDelete).WithCause(err)
+		return errs.Tech(CodeDelete).WithCause(err)
 	}
 	if res.DeletedCount == 0 {
-		return liberr.NotFound()
+		return errs.NotFound()
 	}
 	if res.DeletedCount != 1 {
 		log.Error().Err(err).Msg("Rimozione incoerente")
-		return liberr.Tech(CodeInconsistent).WithMessage("rimozione incoerente")
+		return errs.Tech(CodeInconsistent).WithMessage("rimozione incoerente")
 	}
 
 	return nil
 }
 
-func (s *Service) DeleteMany(ctx context.Context, filter IFilter, ro ...options.Lister[options.DeleteManyOptions]) *core.ApplicationError {
+func (s *Service) DeleteMany(ctx context.Context, filter IFilter, ro ...options.Lister[options.DeleteManyOptions]) *core.Error {
 
 	filterB, errB := buildFilter(filter)
 	if errB != nil {
-		return liberr.Tech(CodeFilter).WithCause(errB)
+		return errs.Tech(CodeFilter).WithCause(errB)
 	}
 	collectionNotifiche, collErr := s.collection(filter.GetFilterCollectionName(ctx), "")
 	if collErr != nil {
@@ -296,19 +297,19 @@ func (s *Service) DeleteMany(ctx context.Context, filter IFilter, ro ...options.
 	_, err := collectionNotifiche.DeleteMany(ctx, filterB, ro...)
 	if err != nil {
 		log.Error().Err(err).Msgf("Impossibile rimuovere %s %s", filter.GetFilterCollectionName(ctx), err.Error())
-		return liberr.Tech(CodeDelete).WithCause(err)
+		return errs.Tech(CodeDelete).WithCause(err)
 	}
 
 	return nil
 }
 
-func (s *Service) ExecTransaction(ctx context.Context, transaction func(ctx context.Context) error) *core.ApplicationError {
+func (s *Service) ExecTransaction(ctx context.Context, transaction func(ctx context.Context) error) *core.Error {
 	wc := writeconcern.Majority()
 	txnOptions := options.Transaction().SetWriteConcern(wc)
 	// Starts a session on the client
 	session, err := s.Db().Client().StartSession()
 	if err != nil {
-		return liberr.Tech(CodeTransaction).WithCause(err)
+		return errs.Tech(CodeTransaction).WithCause(err)
 	}
 
 	// Defers ending the session after the transaction is committed or ended
@@ -336,22 +337,22 @@ func (s *Service) ExecTransaction(ctx context.Context, transaction func(ctx cont
 		return session.CommitTransaction(sessCtx)
 	})
 	if err != nil {
-		return liberr.Tech(CodeTransaction).WithCause(err)
+		return errs.Tech(CodeTransaction).WithCause(err)
 	}
 	return nil
 }
 
-func (s *Service) GetIds(ctx context.Context, filter string, collectionName string, sort string, limit int) ([]string, *core.ApplicationError) {
+func (s *Service) GetIds(ctx context.Context, filter string, collectionName string, sort string, limit int) ([]string, *core.Error) {
 	var filterMap map[string]any
 	if err := json.Unmarshal([]byte(filter), &filterMap); err != nil {
 		log.Error().Err(err).Msg("error unmarshal filter")
-		return nil, liberr.Tech(CodeProperties).WithMessage("error unmarshal filter").WithCause(err)
+		return nil, errs.Tech(CodeProperties).WithMessage("error unmarshal filter").WithCause(err)
 	}
 	var sortMap map[string]int
 	if sort != "" {
 		if serr := json.Unmarshal([]byte(sort), &sortMap); serr != nil {
 			log.Error().Err(serr).Msgf("error unmarshal sort: %s", serr.Error())
-			return nil, liberr.Tech(CodeProperties).WithMessage("error unmarshal sort").WithCause(serr)
+			return nil, errs.Tech(CodeProperties).WithMessage("error unmarshal sort").WithCause(serr)
 		}
 	}
 
@@ -373,7 +374,7 @@ func (s *Service) GetIds(ctx context.Context, filter string, collectionName stri
 	}
 	cursor, err := coll.Find(ctx, filterM, findOptions)
 	if err != nil {
-		return nil, liberr.Tech(CodeFind).WithCause(err)
+		return nil, errs.Tech(CodeFind).WithCause(err)
 	}
 	defer mongoutil.CloseCursor(ctx, cursor, "GetIds")
 
@@ -383,7 +384,7 @@ func (s *Service) GetIds(ctx context.Context, filter string, collectionName stri
 			Id string `bson:"_id"` // Campo _id come stringa
 		}
 		if errDecode := cursor.Decode(&result); errDecode != nil {
-			return nil, liberr.Tech(CodeCursor).WithCause(errDecode)
+			return nil, errs.Tech(CodeCursor).WithCause(errDecode)
 		}
 		ids = append(ids, result.Id)
 	}
@@ -391,7 +392,7 @@ func (s *Service) GetIds(ctx context.Context, filter string, collectionName stri
 	return ids, nil
 }
 
-func (s *Service) GetPageByFilter[T ICollection](ctx context.Context, filter IFilter, paging *page.Paging, opts ...options.Lister[options.FindOptions]) ([]T, *core.ApplicationError) {
+func (s *Service) GetPageByFilter[T ICollection](ctx context.Context, filter IFilter, paging *page.Paging, opts ...options.Lister[options.FindOptions]) ([]T, *core.Error) {
 	collection, collErr := s.collection(filter.GetFilterCollectionName(ctx), "")
 	if collErr != nil {
 		return nil, collErr
@@ -399,12 +400,12 @@ func (s *Service) GetPageByFilter[T ICollection](ctx context.Context, filter IFi
 
 	filterB, errB := buildFilter(filter)
 	if errB != nil {
-		return nil, liberr.Tech(CodeFilter).WithCause(errB)
+		return nil, errs.Tech(CodeFilter).WithCause(errB)
 	}
 
 	totalItems, errCount := collection.CountDocuments(ctx, filterB)
 	if errCount != nil {
-		return nil, liberr.Tech(CodeCount).WithCause(errCount)
+		return nil, errs.Tech(CodeCount).WithCause(errCount)
 	}
 
 	paging.SetTotalItems(totalItems)
@@ -420,19 +421,19 @@ func (s *Service) GetPageByFilter[T ICollection](ctx context.Context, filter IFi
 
 	cursor, errFind := collection.Find(ctx, filterB, opts...)
 	if errFind != nil {
-		return nil, liberr.Tech(CodeFind).WithCause(errFind)
+		return nil, errs.Tech(CodeFind).WithCause(errFind)
 	}
 	defer mongoutil.CloseCursor(ctx, cursor, "GetPageByFilter")
 
 	var results []T
 	if errDecode := cursor.All(ctx, &results); errDecode != nil {
-		return nil, liberr.Tech(CodeCursor).WithCause(errDecode)
+		return nil, errs.Tech(CodeCursor).WithCause(errDecode)
 	}
 
 	return results, nil
 }
 
-func (s *Service) GetSequence(ctx context.Context, sequenceCollection, sequenceName string) (int, *core.ApplicationError) {
+func (s *Service) GetSequence(ctx context.Context, sequenceCollection, sequenceName string) (int, *core.Error) {
 	seqColl, collErr := s.collection(sequenceCollection, "")
 	if collErr != nil {
 		return 0, collErr
@@ -452,13 +453,13 @@ func (s *Service) GetSequence(ctx context.Context, sequenceCollection, sequenceN
 	var result bson.M
 	err := seqColl.FindOneAndUpdate(ctx, filter, update, opts).Decode(&result)
 	if err != nil {
-		return 0, liberr.Tech(CodeSequence).WithCause(err)
+		return 0, errs.Tech(CodeSequence).WithCause(err)
 	}
 
 	if sequence, ok := result["sequence"].(int32); ok { // Assuming sequence is an int32
 		return int(sequence), nil
 	} else {
-		return 0, liberr.Tech(CodeSequenceInvalid).WithMessage("sequence is not an integer")
+		return 0, errs.Tech(CodeSequenceInvalid).WithMessage("sequence is not an integer")
 	}
 
 }

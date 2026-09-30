@@ -6,7 +6,7 @@ import (
 	"maps"
 	"reflect"
 
-	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app"
+	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app/utils"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
@@ -43,10 +43,10 @@ var operatorHandlers = map[string]func(string, any) (bson.M, error){
 // - `field:"nome_campo_mongodb"`:  Il nome del campo in MongoDB.
 // - `operator:"$operatore"`: L'operatore MongoDB da usare (es. $eq, $in, $gt, $lt).
 func buildFilter(inputStruct IFilter) (bson.M, error) {
-	// Lo scheletro (nil, puntatore, struct, tag, omitempty) è core.TaggedFields, condiviso col
+	// Lo scheletro (nil, puntatore, struct, tag, omitempty) è utils.TaggedFields, condiviso col
 	// filter builder di go-core-sql. Prima il valore si leggeva prima dei tag, quindi un
 	// campo non esportato qualsiasi faceva panicare reflect.
-	fields, err := core.TaggedFields(inputStruct, "field", "operator")
+	fields, err := utils.TaggedFields(inputStruct, "field", "operator")
 	if err != nil {
 		return nil, err
 	}

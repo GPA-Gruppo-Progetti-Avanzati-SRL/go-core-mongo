@@ -1,6 +1,6 @@
 # Codici di errore — go-core-mongo
 
-Tutti i metodi del `*coremongo.Service` ritornano `*core.ApplicationError`. L'errore del driver
+Tutti i metodi del `*coremongo.Service` ritornano `*core.Error`. L'errore del driver
 è **allegato come causa** (`WithCause`): un `mongo.ErrNoDocuments` resta raggiungibile con
 `errors.Is` anche dentro un 404.
 
@@ -8,7 +8,7 @@ Tutti i metodi del `*coremongo.Service` ritornano `*core.ApplicationError`. L'er
 > `authorization` compreso: è il campo che dice da quale libreria viene il guasto. Senza,
 > `ApplicationError.Ambit` resterebbe l'`AppName`, cioè l'app che l'errore lo riceve.
 > I codici sono costanti esportate (`coremongo.CodeFilter`, …) in `errors.go`, e passano tutti
-> da `liberr.Tech(code)` / `liberr.NotFound()` (`liberr = core.Errors{Ambit: Ambit}`).
+> da `errs.Tech(code)` / `errs.NotFound()` (`errs = core.AmbitErrors{Ambit: Ambit}`).
 
 ## Risorse non configurate
 
