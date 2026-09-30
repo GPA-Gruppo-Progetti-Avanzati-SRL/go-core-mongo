@@ -23,6 +23,8 @@ Tutti i metodi del `*coremongo.Service` ritornano `*core.Error`. L'errore del dr
 | Codice | HTTP | Costante | Origine | Significato |
 |---|---|---|---|---|
 | `MONGO-FILTER` | 500 | `CodeFilter` | `collection.go:65,84,106,131,197,219,241,263,289,396`, `aggregation.go:179` | `buildFilter` fallita: tag `field:`/`operator:` non validi. È l'errore che prima si confondeva con un guasto del driver |
+| `MONGO-SORT` | 422 | `CodeSort` | `collection.go` (`GetObjectsByFilterSorted`) | campo di sort che non è un identificatore (`page.ValidSortField`): in bson una chiave `$...` sarebbe un operatore |
+| `MONGO-EMPTY-FILTER` | 422 | `CodeEmptyFilter` | `collection.go` (`buildWriteFilter`: `UpdateOne`, `UpdateMany`, `ReplaceOne`, `DeleteOne`, `DeleteMany`) | il filtro di una scrittura è vuoto (campi `omitempty` tutti vuoti): toccherebbe tutti i documenti, quindi l'operazione non parte |
 | `MONGO-FINDONE` | 500 | `CodeFindOne` | `collection.go:54,95` | `FindOne` (o il decode del singolo documento) fallita |
 | `MONGO-FIND` | 500 | `CodeFind` | `collection.go:370,417` | `Find` fallita (`GetIds`, `GetPageByFilter`) |
 | `MONGO-CURSOR` | 500 | `CodeCursor` | `collection.go:380,423` | iterazione/decode del cursore fallita |

@@ -95,7 +95,17 @@ La struct di input deve avere i campi taggati con:
 | array | `$size` |
 
 Gli operatori sulle stringhe sono tradotti in `$regex` con l'ancoraggio giusto; le varianti con la
-`i` iniziale sono case-insensitive.
+`i` iniziale sono case-insensitive. **`$startswith`/`$endswith`/`$contains` confrontano un testo**: il
+valore passa da `regexp.QuoteMeta`, quindi `.*` o `(a+)+$` arrivati da un query param sono caratteri,
+non un pattern che allarga il filtro o tiene occupato il database (ReDoS). **`$regex` invece è un
+pattern**, scelto da chi scrive il filtro: non va riempito con input non fidato.
+
+**Le scritture pretendono un filtro non vuoto.** `UpdateOne`, `UpdateMany`, `ReplaceOne`,
+`DeleteOne` e `DeleteMany` con un filtro che produce `{}` — tipicamente campi `omitempty` tutti vuoti
+perché i query param mancano — ritornano `MONGO-EMPTY-FILTER` (422) senza toccare il database: prima
+lavoravano sull'intera collection (o su un documento qualsiasi). Per una scrittura davvero globale
+c'è il driver, da `s.Db()`. Anche il sort è validato: un campo che non è un identificatore dà
+`MONGO-SORT` (422), perché in bson una chiave `$...` è un operatore.
 
 ```go
 Filtro struct {

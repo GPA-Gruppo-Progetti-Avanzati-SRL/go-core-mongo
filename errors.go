@@ -15,6 +15,8 @@ const (
 	CodeAggregationNotFound = "MONGO-AGGR-NOTFOUND" // aggregation non presente nel registry
 	CodeAggregationOperator = "MONGO-AGGR-OP"       // stage con operatore non supportato
 	CodeFilter              = "MONGO-FILTER"        // buildFilter fallita: tag field/operator non validi
+	CodeSort                = "MONGO-SORT"          // campo di sort non valido (non un identificatore)
+	CodeEmptyFilter         = "MONGO-EMPTY-FILTER"  // scrittura con un filtro vuoto
 	CodeFindOne             = "MONGO-FINDONE"       // FindOne fallita (o decode del singolo documento)
 	CodeFind                = "MONGO-FIND"          // Find fallita
 	CodeCursor              = "MONGO-CURSOR"        // iterazione/decode del cursore fallita

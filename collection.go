@@ -136,6 +136,11 @@ func (s *Service) GetObjectsByFilterSorted[T ICollection](ctx context.Context, f
 	if collErr != nil {
 		return nil, collErr
 	}
+	// In bson una chiave `$...` è un operatore: il campo di sort, che di solito arriva da un query
+	// param, dev'essere un identificatore.
+	if err := sort.Validate(); err != nil {
+		return nil, errs.Business(CodeSort).WithCause(err)
+	}
 	findOptions := options.Find().SetSort(SortToBson(sort))
 	cur, err := coll.Find(ctx, filterB, findOptions)
 	if err != nil {
@@ -194,9 +199,9 @@ func (s *Service) InsertMany[T ICollection](ctx context.Context, list []T, opts 
 
 func (s *Service) UpdateOne(ctx context.Context, filter IFilter, update bson.M, opts ...options.Lister[options.UpdateOneOptions]) *core.Error {
 
-	filterB, errB := buildFilter(filter)
-	if errB != nil {
-		return errs.Tech(CodeFilter).WithCause(errB)
+	filterB, appErr := buildWriteFilter(filter)
+	if appErr != nil {
+		return appErr
 	}
 	collectionNotifiche, collErr := s.collection(filter.GetFilterCollectionName(ctx), "")
 	if collErr != nil {
@@ -216,9 +221,9 @@ func (s *Service) UpdateOne(ctx context.Context, filter IFilter, update bson.M, 
 
 func (s *Service) UpdateMany(ctx context.Context, filter IFilter, update bson.M, len int) *core.Error {
 
-	filterB, errB := buildFilter(filter)
-	if errB != nil {
-		return errs.Tech(CodeFilter).WithCause(errB)
+	filterB, appErr := buildWriteFilter(filter)
+	if appErr != nil {
+		return appErr
 	}
 	collectionNotifiche, collErr := s.collection(filter.GetFilterCollectionName(ctx), "")
 	if collErr != nil {
@@ -238,9 +243,9 @@ func (s *Service) UpdateMany(ctx context.Context, filter IFilter, update bson.M,
 
 func (s *Service) ReplaceOne[T ICollection](ctx context.Context, filter IFilter, obj ICollection, ro ...options.Lister[options.ReplaceOptions]) *core.Error {
 
-	filterB, errB := buildFilter(filter)
-	if errB != nil {
-		return errs.Tech(CodeFilter).WithCause(errB)
+	filterB, appErr := buildWriteFilter(filter)
+	if appErr != nil {
+		return appErr
 	}
 	collectionNotifiche, collErr := s.collection(obj.GetCollectionName(ctx), "")
 	if collErr != nil {
@@ -260,9 +265,9 @@ func (s *Service) ReplaceOne[T ICollection](ctx context.Context, filter IFilter,
 
 func (s *Service) DeleteOne(ctx context.Context, filter IFilter, ro ...options.Lister[options.DeleteOneOptions]) *core.Error {
 
-	filterB, errB := buildFilter(filter)
-	if errB != nil {
-		return errs.Tech(CodeFilter).WithCause(errB)
+	filterB, appErr := buildWriteFilter(filter)
+	if appErr != nil {
+		return appErr
 	}
 	collectionNotifiche, collErr := s.collection(filter.GetFilterCollectionName(ctx), "")
 	if collErr != nil {
@@ -286,9 +291,9 @@ func (s *Service) DeleteOne(ctx context.Context, filter IFilter, ro ...options.L
 
 func (s *Service) DeleteMany(ctx context.Context, filter IFilter, ro ...options.Lister[options.DeleteManyOptions]) *core.Error {
 
-	filterB, errB := buildFilter(filter)
-	if errB != nil {
-		return errs.Tech(CodeFilter).WithCause(errB)
+	filterB, appErr := buildWriteFilter(filter)
+	if appErr != nil {
+		return appErr
 	}
 	collectionNotifiche, collErr := s.collection(filter.GetFilterCollectionName(ctx), "")
 	if collErr != nil {
@@ -479,4 +484,21 @@ func (s *Service) UpdateSingleRecord(ctx context.Context, collectionName string,
 		return errors.New("aggiornamento incoerente " + collectionName)
 	}
 	return nil
+}
+
+// buildWriteFilter è buildFilter per le scritture (UpdateOne/UpdateMany/ReplaceOne/DeleteOne/
+// DeleteMany): un filtro vuoto è un errore, non `{}`. Un filtro coi campi tutti `omitempty` e tutti
+// vuoti — tipicamente query param assenti — faceva aggiornare o cancellare l'intera collection
+// (DeleteOne/UpdateOne/ReplaceOne: un documento qualsiasi). Chi vuole davvero toccare tutto lo
+// scrive col driver, da Service.Db().
+func buildWriteFilter(filter IFilter) (bson.M, *core.Error) {
+	filterB, err := buildFilter(filter)
+	if err != nil {
+		return nil, errs.Tech(CodeFilter).WithCause(err)
+	}
+	if len(filterB) == 0 {
+		return nil, errs.Business(CodeEmptyFilter).
+			WithMessage("il filtro non esprime nessuna condizione: la scrittura toccherebbe tutti i documenti")
+	}
+	return filterB, nil
 }

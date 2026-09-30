@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"maps"
 	"reflect"
+	"regexp"
 
 	"github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app/utils"
 	"github.com/rs/zerolog"
@@ -104,12 +105,17 @@ func handleBoolOperator(operator string, fieldValue any) (bson.M, error) {
 	return bson.M{operator: boolValue}, nil
 }
 
+// Gli operatori $startswith/$endswith/$contains (e le varianti $i…) confrontano un testo, non un
+// pattern: il valore passa da regexp.QuoteMeta prima di finire nella $regex. Senza, un valore
+// arrivato da un query param era un'espressione regolare scelta dall'utente — `.*` che allarga un
+// filtro di scoping, o `(a+)+$` che tiene occupato il database (ReDoS).
+
 func handleStartsWithOperator(operator string, fieldValue any) (bson.M, error) {
 	strValue, ok := fieldValue.(string)
 	if !ok {
 		return nil, fmt.Errorf("operatore '%s' richiede un valore di tipo stringa", operator)
 	}
-	return bson.M{"$regex": "^" + strValue}, nil
+	return bson.M{"$regex": "^" + regexp.QuoteMeta(strValue)}, nil
 }
 
 func handleIStartsWithOperator(operator string, fieldValue any) (bson.M, error) {
@@ -117,7 +123,7 @@ func handleIStartsWithOperator(operator string, fieldValue any) (bson.M, error) 
 	if !ok {
 		return nil, fmt.Errorf("operatore '%s' richiede un valore di tipo stringa", operator)
 	}
-	return bson.M{"$regex": bson.Regex{Pattern: "^" + strValue, Options: "i"}}, nil
+	return bson.M{"$regex": bson.Regex{Pattern: "^" + regexp.QuoteMeta(strValue), Options: "i"}}, nil
 }
 
 func handleEndsWithOperator(operator string, fieldValue any) (bson.M, error) {
@@ -125,7 +131,7 @@ func handleEndsWithOperator(operator string, fieldValue any) (bson.M, error) {
 	if !ok {
 		return nil, fmt.Errorf("operatore '%s' richiede un valore di tipo stringa", operator)
 	}
-	return bson.M{"$regex": strValue + "$"}, nil
+	return bson.M{"$regex": regexp.QuoteMeta(strValue) + "$"}, nil
 }
 
 func handleIEndsWithOperator(operator string, fieldValue any) (bson.M, error) {
@@ -133,7 +139,7 @@ func handleIEndsWithOperator(operator string, fieldValue any) (bson.M, error) {
 	if !ok {
 		return nil, fmt.Errorf("operatore '%s' richiede un valore di tipo stringa", operator)
 	}
-	return bson.M{"$regex": bson.Regex{Pattern: strValue + "$", Options: "i"}}, nil
+	return bson.M{"$regex": bson.Regex{Pattern: regexp.QuoteMeta(strValue) + "$", Options: "i"}}, nil
 }
 
 func handleContainsOperator(operator string, fieldValue any) (bson.M, error) {
@@ -141,7 +147,7 @@ func handleContainsOperator(operator string, fieldValue any) (bson.M, error) {
 	if !ok {
 		return nil, fmt.Errorf("operatore '%s' richiede un valore di tipo stringa", operator)
 	}
-	return bson.M{"$regex": strValue}, nil
+	return bson.M{"$regex": regexp.QuoteMeta(strValue)}, nil
 }
 
 func handleIContainsOperator(operator string, fieldValue any) (bson.M, error) {
@@ -149,9 +155,12 @@ func handleIContainsOperator(operator string, fieldValue any) (bson.M, error) {
 	if !ok {
 		return nil, fmt.Errorf("operatore '%s' richiede un valore di tipo stringa", operator)
 	}
-	return bson.M{"$regex": bson.Regex{Pattern: strValue, Options: "i"}}, nil
+	return bson.M{"$regex": bson.Regex{Pattern: regexp.QuoteMeta(strValue), Options: "i"}}, nil
 }
 
+// handleRegexOperator passa il valore come pattern, senza escaping: $regex È un'espressione
+// regolare, scelta da chi scrive il filtro. Un campo `operator:"$regex"` non va quindi riempito con
+// input non fidato — per quello ci sono $contains/$startswith/$endswith.
 func handleRegexOperator(operator string, fieldValue any) (bson.M, error) {
 	strValue, ok := fieldValue.(string)
 	if !ok {
