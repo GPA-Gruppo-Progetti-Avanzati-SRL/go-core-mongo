@@ -87,7 +87,7 @@ func (s *Service) BulkWrite[T ICollection](ctx context.Context, models []mongo.W
 	}
 	res, err := coll.BulkWrite(ctx, models, opts...)
 	if err != nil {
-		return nil, techErr(CodeBulk).WithCause(err)
+		return nil, liberr.Tech(CodeBulk).WithCause(err)
 	}
 	return &BulkResult{
 		Inserted:  res.InsertedCount,

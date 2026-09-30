@@ -8,7 +8,7 @@ Tutti i metodi del `*coremongo.Service` ritornano `*core.ApplicationError`. L'er
 > `authorization` compreso: è il campo che dice da quale libreria viene il guasto. Senza,
 > `ApplicationError.Ambit` resterebbe l'`AppName`, cioè l'app che l'errore lo riceve.
 > I codici sono costanti esportate (`coremongo.CodeFilter`, …) in `errors.go`, e passano tutti
-> dal costruttore `techErr(code)` / `notFound()`.
+> da `liberr.Tech(code)` / `liberr.NotFound()` (`liberr = core.Errors{Ambit: Ambit}`).
 
 ## Risorse non configurate
 

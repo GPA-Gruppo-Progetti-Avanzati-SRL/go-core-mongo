@@ -107,7 +107,7 @@ func (r aggregations) pipeline(a *Aggregation, params map[string]any) (mongo.Pip
 		fparams := params[stage.Key]
 		gs, ok := stageGenerators[stage.Operator]
 		if !ok {
-			return nil, techErr(CodeAggregationOperator).WithMessage("operator " + stage.Operator + " is not supported")
+			return nil, liberr.Tech(CodeAggregationOperator).WithMessage("operator " + stage.Operator + " is not supported")
 		}
 		s, errG := gs(r, stage.Operator, stage.Args, fparams)
 		if errG != nil {
@@ -128,12 +128,12 @@ func unionWith(r aggregations, function string, args map[string]any, params any)
 
 	pipelineName, okP := args["pipeline"].(string)
 	if !okP {
-		return nil, techErr(CodeAggregationNotFound).
+		return nil, liberr.Tech(CodeAggregationNotFound).
 			WithMessage("unionWith: argomento 'pipeline' assente o non stringa")
 	}
 	a, okA := r[pipelineName]
 	if !okA {
-		return nil, techErr(CodeAggregationNotFound).
+		return nil, liberr.Tech(CodeAggregationNotFound).
 			WithMessage(fmt.Sprintf("unionWith: aggregation '%s' non configurata", pipelineName))
 	}
 
@@ -171,13 +171,13 @@ func match(r aggregations, function string, args map[string]any, params any) (bs
 	}
 	p, ok := params.(IFilter)
 	if !ok {
-		return nil, techErr(CodeAggregationFilter).WithMessage("Filtro non di tipo IFilter")
+		return nil, liberr.Tech(CodeAggregationFilter).WithMessage("Filtro non di tipo IFilter")
 	}
 
 	filterM, err := buildFilter(p)
 
 	if err != nil {
-		return nil, techErr(CodeFilter).WithCause(err)
+		return nil, liberr.Tech(CodeFilter).WithCause(err)
 	}
 	return bson.D{{Key: function, Value: filterM}}, nil
 }
@@ -186,24 +186,24 @@ func sort(r aggregations, function string, args map[string]any, params any) (bso
 	sortBson := bson.D{}
 	sortEl, ok := args["order"].([]any)
 	if !ok {
-		return nil, techErr(CodeAggregationSort).WithMessage("order non trovato")
+		return nil, liberr.Tech(CodeAggregationSort).WithMessage("order non trovato")
 	}
 
 	for _, sortField := range sortEl {
 		sortFi, sok := sortField.(map[string]any)
 		if !sok {
-			return nil, techErr(CodeAggregationSort).WithMessage("no sort structure")
+			return nil, liberr.Tech(CodeAggregationSort).WithMessage("no sort structure")
 
 		}
 
 		sortC, cok := sortFi["field"].(string)
 		if !cok {
-			return nil, techErr(CodeAggregationSort).WithMessage("no sort field in sort")
+			return nil, liberr.Tech(CodeAggregationSort).WithMessage("no sort field in sort")
 
 		}
 		sortV, vok := sortFi["verse"].(string)
 		if !vok {
-			return nil, techErr(CodeAggregationSort).WithMessage("no  sort verse in sort")
+			return nil, liberr.Tech(CodeAggregationSort).WithMessage("no  sort verse in sort")
 
 		}
 		order := 1 // Default to ascending
@@ -219,7 +219,7 @@ func sort(r aggregations, function string, args map[string]any, params any) (bso
 func (s *Service) ExecuteAggregation[T any](ctx context.Context, name string, params map[string]any, opts ...options.Lister[options.AggregateOptions]) ([]*T, *core.ApplicationError) {
 	aggregation, ok := s.aggregations[name]
 	if !ok {
-		return nil, techErr(CodeAggregationNotFound).
+		return nil, liberr.Tech(CodeAggregationNotFound).
 			WithMessage(fmt.Sprintf("aggregation '%s' non configurata", name))
 	}
 	mp, err := s.aggregations.pipeline(aggregation, params)
@@ -239,14 +239,14 @@ func (s *Service) ExecuteAggregation[T any](ctx context.Context, name string, pa
 	cur, errAgg := coll.Aggregate(ctx, mp, opts...)
 	if errAgg != nil {
 		if errors.Is(errAgg, mongo.ErrNoDocuments) {
-			return nil, notFound().WithCause(errAgg)
+			return nil, liberr.NotFound().WithCause(errAgg)
 		}
-		return nil, techErr(CodeExecAggregation).WithCause(errAgg)
+		return nil, liberr.Tech(CodeExecAggregation).WithCause(errAgg)
 	}
 	defer mongoutil.CloseCursor(ctx, cur, "ExecuteAggregation")
 	results := make([]*T, 0)
 	if errCur := cur.All(ctx, &results); errCur != nil {
-		return nil, techErr(CodeExecAggregationCur).WithCause(errCur)
+		return nil, liberr.Tech(CodeExecAggregationCur).WithCause(errCur)
 	}
 
 	return results, nil

@@ -42,15 +42,7 @@ const (
 	CodeSequenceInvalid     = "SEQ-INV"             // campo sequence non intero
 )
 
-// techErr è il costruttore usato da tutto il modulo: un errore tecnico che dichiara sempre
-// codice e libreria di origine. Esiste perché l'ambit era l'unica cosa che si poteva
-// dimenticare su ognuno dei ~50 siti di errore, e dimenticarla non rompe niente — semplicemente
-// attribuisce il guasto all'app.
-func techErr(code string) *core.ApplicationError {
-	return core.TechnicalError().WithAmbit(Ambit).WithCode(code)
-}
-
-// notFound è il 404 del modulo (codice NOT-FOUND di core), con la libreria di origine.
-func notFound() *core.ApplicationError {
-	return core.NotFoundError().WithAmbit(Ambit)
-}
+// liberr costruisce tutti gli errori del modulo con codice e libreria di origine (vedi
+// core.Errors): l'ambito è l'unica cosa che si poteva dimenticare su ognuno dei siti di errore, e
+// dimenticarla non rompe niente — semplicemente attribuisce il guasto all'app.
+var liberr = core.Errors{Ambit: Ambit}
