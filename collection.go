@@ -308,40 +308,30 @@ func (s *Service) DeleteMany(ctx context.Context, filter IFilter, ro ...options.
 	return nil
 }
 
+// ExecTransaction esegue transaction in una transazione multi-documento (write concern majority).
+// Un errore ritornato da transaction la abortisce; nil la committa.
+//
+// Passa da session.WithTransaction, cioè dal protocollo di retry del driver: una transazione
+// abortita da un errore TransientTransactionError (conflitto di scrittura, elezione del primario) è
+// rieseguita per intero, e un commit dall'esito ignoto (UnknownTransactionCommitResult, la rete
+// caduta durante il commit) è ritentato — entro il limite di 120s del driver. Prima ogni errore del
+// genere risaliva al chiamante, che nella prassi non ritentava: un conflitto fra due richieste
+// concorrenti diventava un 500.
+//
+// Conseguenza da conoscere: transaction può essere eseguita PIÙ VOLTE. Dentro deve fare solo
+// operazioni sul database col ctx che riceve (che porta la sessione); un effetto esterno — una
+// chiamata HTTP, un messaggio pubblicato — sarebbe ripetuto a ogni tentativo.
 func (s *Service) ExecTransaction(ctx context.Context, transaction func(ctx context.Context) error) *core.Error {
-	wc := writeconcern.Majority()
-	txnOptions := options.Transaction().SetWriteConcern(wc)
-	// Starts a session on the client
 	session, err := s.Db().Client().StartSession()
 	if err != nil {
 		return errs.Tech(CodeTransaction).WithCause(err)
 	}
-
-	// Defers ending the session after the transaction is committed or ended
 	defer session.EndSession(ctx)
 
-	// Esecuzione della transazione
-	err = mongo.WithSession(ctx, session, func(sessCtx context.Context) error {
-		// Inizia la transazione
-		if errSt := session.StartTransaction(txnOptions); errSt != nil {
-			return errSt
-		}
-
-		// Esegue la transazione con il callback
-		if errT := transaction(sessCtx); errT != nil {
-			// Rollback. L'errore che risale è quello della transazione, non quello dell'abort — ma un
-			// abort fallito lascia la transazione aperta fino al timeout del server, e questo è
-			// l'unico punto in cui lo si può sapere.
-			if errAbort := session.AbortTransaction(sessCtx); errAbort != nil {
-				log.Warn().Err(errAbort).Msg("rollback della transazione fallito")
-			}
-			return errT
-		}
-
-		// Commit della transazione
-		return session.CommitTransaction(sessCtx)
-	})
-	if err != nil {
+	txnOptions := options.Transaction().SetWriteConcern(writeconcern.Majority())
+	if _, err := session.WithTransaction(ctx, func(sessCtx context.Context) (any, error) {
+		return nil, transaction(sessCtx)
+	}, txnOptions); err != nil {
 		return errs.Tech(CodeTransaction).WithCause(err)
 	}
 	return nil

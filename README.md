@@ -169,6 +169,14 @@ appErr := s.ExecTransaction(ctx, func(ctx context.Context) error { ... })
 seq,  appErr := s.GetSequence(ctx, "sequences", "person-id")
 ```
 
+**`ExecTransaction` ritenta** (passa da `session.WithTransaction`): una transazione abortita da un
+`TransientTransactionError` — un conflitto di scrittura con un'altra richiesta, un'elezione del
+primario — è rieseguita per intero, e un commit dall'esito ignoto è ritentato, entro i 120s del driver.
+Quindi **il callback può girare più volte**: dentro vanno solo operazioni sul database fatte col `ctx`
+ricevuto (porta la sessione), mai effetti esterni come una chiamata HTTP o un messaggio pubblicato.
+Prima il conflitto risaliva come `MONGO-TRANSACTION`, cioè un 500 per due richieste concorrenti.
+Serve un replica set (anche di un nodo solo); i test sono in `transaction_test.go`, con `MONGO_URL`.
+
 I `NotFoundError` conservano `mongo.ErrNoDocuments` come causa: è recuperabile con `errors.Is`
 senza parsare il messaggio.
 
