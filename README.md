@@ -177,6 +177,18 @@ ricevuto (porta la sessione), mai effetti esterni come una chiamata HTTP o un me
 Prima il conflitto risaliva come `MONGO-TRANSACTION`, cioè un 500 per due richieste concorrenti.
 Serve un replica set (anche di un nodo solo); i test sono in `transaction_test.go`, con `MONGO_URL`.
 
+**Le scritture contano i documenti trovati, non quelli modificati.** `UpdateOne`, `UpdateMany`,
+`ReplaceOne` e `UpdateSingleRecord` controllano `MatchedCount`: un update che riscrive gli stessi
+valori è un successo (prima `ModifiedCount = 0` dava un 500 "aggiornamento incoerente", e ogni PUT
+ripetuto falliva), e un documento assente è un **404** come in `DeleteOne`. `UpdateSingleRecord` rifiuta
+un filtro vuoto (`MONGO-EMPTY-FILTER`): su `UpdateOne` `{}` non tocca nessuno, tocca il primo
+documento che trova.
+
+**Le pagine hanno un ordine.** `GetPageByFilter` senza un sort del chiamante ordina per `_id`: skip e
+limit su un ordine non dichiarato non paginano, perché MongoDB non garantisce lo stesso ordine fra due
+query. `GetSequence` accetta un contatore `int32`, `int64` o double intero (prima solo `int32`: un
+contatore migrato o oltre 2³¹ falliva).
+
 I `NotFoundError` conservano `mongo.ErrNoDocuments` come causa: è recuperabile con `errors.Is`
 senza parsare il messaggio.
 

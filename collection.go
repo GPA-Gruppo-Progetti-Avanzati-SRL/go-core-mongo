@@ -212,9 +212,12 @@ func (s *Service) UpdateOne(ctx context.Context, filter IFilter, update bson.M, 
 		log.Error().Err(err).Msgf("Impossibile aggiornare %s %s", filter.GetFilterCollectionName(ctx), err.Error())
 		return errs.Tech(CodeUpdate).WithCause(err)
 	}
-	if res.ModifiedCount != 1 && res.UpsertedCount != 1 {
-		log.Error().Err(err).Msg("Aggiornamento incoerente")
-		return errs.Tech(CodeInconsistent).WithMessage("aggiornamento incoerente")
+	// MatchedCount e non ModifiedCount: un update che riscrive gli stessi valori trova il documento
+	// e non lo modifica, ed è un successo — prima era un 500 "aggiornamento incoerente", quindi ogni
+	// update idempotente (un retry, un PUT ripetuto) falliva. Nessun documento trovato è un 404, come
+	// in DeleteOne.
+	if res.MatchedCount == 0 && res.UpsertedCount == 0 {
+		return errs.NotFound()
 	}
 	return nil
 }
@@ -234,8 +237,9 @@ func (s *Service) UpdateMany(ctx context.Context, filter IFilter, update bson.M,
 		log.Error().Err(err).Msgf("Impossibile aggiornare %s %s", filter.GetFilterCollectionName(ctx), err.Error())
 		return errs.Tech(CodeUpdate).WithCause(err)
 	}
-	if res.ModifiedCount != int64(len) {
-		log.Error().Err(err).Msg("Aggiornamento incoerente")
+	// MatchedCount: i documenti già al valore richiesto contano come aggiornati (vedi UpdateOne).
+	if res.MatchedCount != int64(len) {
+		log.Error().Int64("matched", res.MatchedCount).Int("attesi", len).Msg("Aggiornamento incoerente")
 		return errs.Tech(CodeInconsistent).WithMessage("aggiornamento incoerente")
 	}
 	return nil
@@ -256,9 +260,12 @@ func (s *Service) ReplaceOne[T ICollection](ctx context.Context, filter IFilter,
 		log.Error().Err(err).Msgf("Impossibile replace %s %s", obj.GetCollectionName(ctx), err.Error())
 		return errs.Tech(CodeReplace).WithCause(err)
 	}
-	if res.ModifiedCount != 1 && res.UpsertedCount != 1 {
-		log.Error().Err(err).Msg("Aggiornamento incoerente")
-		return errs.Tech(CodeInconsistent).WithMessage("aggiornamento incoerente")
+	// MatchedCount e non ModifiedCount: un update che riscrive gli stessi valori trova il documento
+	// e non lo modifica, ed è un successo — prima era un 500 "aggiornamento incoerente", quindi ogni
+	// update idempotente (un retry, un PUT ripetuto) falliva. Nessun documento trovato è un 404, come
+	// in DeleteOne.
+	if res.MatchedCount == 0 && res.UpsertedCount == 0 {
+		return errs.NotFound()
 	}
 	return nil
 }
@@ -410,6 +417,12 @@ func (s *Service) GetPageByFilter[T ICollection](ctx context.Context, filter IFi
 	}
 
 	if offset >= 0 {
+		// Skip/limit su un ordine non dichiarato non pagina: MongoDB non garantisce lo stesso ordine
+		// fra due query, e due pagine possono ripetere o saltare documenti. Senza un sort del
+		// chiamante si ordina per _id, che è unico.
+		if !hasSort(opts) {
+			opts = append(opts, options.Find().SetSort(bson.D{{Key: "_id", Value: 1}}))
+		}
 		opts = append(opts, options.Find().SetSkip(int64(offset)))
 		opts = append(opts, options.Find().SetLimit(int64(paging.PageSize)))
 	}
@@ -451,11 +464,19 @@ func (s *Service) GetSequence(ctx context.Context, sequenceCollection, sequenceN
 		return 0, errs.Tech(CodeSequence).WithCause(err)
 	}
 
-	if sequence, ok := result["sequence"].(int32); ok { // Assuming sequence is an int32
-		return int(sequence), nil
-	} else {
-		return 0, errs.Tech(CodeSequenceInvalid).WithMessage("sequence is not an integer")
+	// $inc su un campo assente crea un int32, ma un contatore creato a mano, migrato o cresciuto
+	// oltre 2^31 è un int64 (o un double): prima solo l'int32 era accettato.
+	switch v := result["sequence"].(type) {
+	case int32:
+		return int(v), nil
+	case int64:
+		return int(v), nil
+	case float64:
+		if v == float64(int64(v)) {
+			return int(v), nil
+		}
 	}
+	return 0, errs.Tech(CodeSequenceInvalid).WithMessage("sequence is not an integer")
 
 }
 
@@ -464,12 +485,16 @@ func (s *Service) UpdateSingleRecord(ctx context.Context, collectionName string,
 	if collErr != nil {
 		return collErr
 	}
+	if isEmptyFilter(filterR) {
+		return errs.Business(CodeEmptyFilter).
+			WithMessage("il filtro non esprime nessuna condizione: l'update toccherebbe un documento qualunque")
+	}
 	resR, err := collectionRicorrenza.UpdateOne(ctx, filterR, updateR)
 	if err != nil {
 		log.Error().Err(err).Msg("Impossibile aggiornare")
 		return err
 	}
-	if resR.ModifiedCount != 1 {
+	if resR.MatchedCount != 1 {
 		log.Error().Err(err).Msgf("Aggiornamento %s incoerente", collectionName)
 		return errors.New("aggiornamento incoerente " + collectionName)
 	}
@@ -491,4 +516,34 @@ func buildWriteFilter(filter IFilter) (bson.M, *core.Error) {
 			WithMessage("il filtro non esprime nessuna condizione: la scrittura toccherebbe tutti i documenti")
 	}
 	return filterB, nil
+}
+
+// hasSort dice se fra le opzioni della Find c'è un ordinamento.
+func hasSort(opts []options.Lister[options.FindOptions]) bool {
+	var fo options.FindOptions
+	for _, o := range opts {
+		for _, set := range o.List() {
+			if err := set(&fo); err != nil {
+				return false
+			}
+		}
+	}
+	return fo.Sort != nil
+}
+
+// isEmptyFilter riconosce i filtri vuoti delle forme che un chiamante passa davvero: nil e le
+// mappe/liste bson senza condizioni. Su UpdateOne un filtro vuoto non tocca "nessuno": tocca il
+// primo documento che il server trova.
+func isEmptyFilter(f any) bool {
+	switch v := f.(type) {
+	case nil:
+		return true
+	case bson.M:
+		return len(v) == 0
+	case map[string]any:
+		return len(v) == 0
+	case bson.D:
+		return len(v) == 0
+	}
+	return false
 }

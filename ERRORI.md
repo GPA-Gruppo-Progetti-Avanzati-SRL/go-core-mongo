@@ -44,8 +44,8 @@ Tutti i metodi del `*coremongo.Service` ritornano `*core.Error`. L'errore del dr
 | `MONGO-UPDATE` | 500 | `CodeUpdate` | `collection.go:206,228` | `UpdateOne`/`UpdateMany` fallita |
 | `MONGO-REPLACE` | 500 | `CodeReplace` | `collection.go:250` | `ReplaceOne` fallita |
 | `MONGO-DELETE` | 500 | `CodeDelete` | `collection.go:272,298` | `DeleteOne`/`DeleteMany` fallita |
-| `MON-AGGINC` | 500 | `CodeInconsistent` | `collection.go:210,232,254,279` | update/replace/delete che ha toccato **≠ 1** documento |
-| `NOT-FOUND` | 404 | — | `collection.go:275` | delete con `DeletedCount == 0` |
+| `MON-AGGINC` | 500 | `CodeInconsistent` | `collection.go` (`UpdateMany`, `DeleteOne`) | `UpdateMany` che ha **trovato** un numero di documenti diverso dall'atteso; `DeleteOne` che ne ha cancellati più di uno |
+| `NOT-FOUND` | 404 | — | `collection.go` (`UpdateOne`, `ReplaceOne`, `DeleteOne`) | nessun documento trovato (e nessun upsert). Fino al 2026-10-01 `UpdateOne`/`ReplaceOne` controllavano `ModifiedCount` e rispondevano `MON-AGGINC` anche a un update che riscriveva gli stessi valori |
 | `MONGO-BULK` | 500 | `CodeBulk` | `bulk.go:90` | `BulkWrite` fallita. Il `*BulkResult` è nil: nessun contatore da leggere |
 | `MONGO-TX` | 500 | `CodeTransaction` | `collection.go:310,333` | `StartSession` o `WithSession`/commit falliti |
 | `MONGO-SEQ` | 500 | `CodeSequence` | `collection.go:449` | `FindOneAndUpdate` sulla collection di sequenze fallita |
