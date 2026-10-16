@@ -21,7 +21,7 @@ func SortToBson(s page.SortRequest) bson.D {
 //
 // Usage:
 //
-//	results, err := coremongo.GetPageByFilter(ctx, ms, filter, paging, coremongo.FindSortOption(sortReq))
+//	results, err := svc.GetPageByFilter[models.Person](ctx, &filter, paging, coremongo.FindSortOption(sortReq))
 func FindSortOption(s page.SortRequest) options.Lister[options.FindOptions] {
 	return options.Find().SetSort(SortToBson(s))
 }

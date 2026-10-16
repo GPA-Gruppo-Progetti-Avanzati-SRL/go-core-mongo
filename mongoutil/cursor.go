@@ -1,9 +1,8 @@
 // Package mongoutil raccoglie le utility neutre attorno al driver Mongo.
 //
-// È un package foglia — non importa nulla di go-core-mongo — perché i suoi utenti stanno sui due
-// lati di una dipendenza che non si può invertire: il package root `coremongo` importa
-// `authorization` (per esporne l'Option), quindi `authorization` non può importare il root, e una
-// utility al root sarebbe inutilizzabile proprio dove i cursori sono tre.
+// È un package foglia — non importa nulla di go-core-mongo — perché i suoi utenti non sono solo
+// il package root `coremongo`: lo usano anche i backend mongo di go-core-batch e go-core-auth, che
+// aprono cursori col driver nativo e non devono trascinarsi dietro il Service per un defer.
 package mongoutil
 
 import (
