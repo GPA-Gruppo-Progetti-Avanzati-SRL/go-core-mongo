@@ -3,7 +3,7 @@ module github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-mongo
 go 1.27.3
 
 require (
-	github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app v0.0.29-0.20261022100736-e9d4241f255c
+	github.com/GPA-Gruppo-Progetti-Avanzati-SRL/go-core-app v0.0.29-0.20261023164504-295798846767
 	github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-mongo-common v1.0.27-0.20261023164109-a2ec55461665
 	github.com/rs/zerolog v1.35.1
 	go.mongodb.org/mongo-driver/v2 v2.9.2
@@ -13,7 +13,7 @@ require (
 
 require (
 	github.com/GPA-Gruppo-Progetti-Avanzati-SRL/tpm-common v0.1.97 // indirect
-	github.com/KimMachineGun/automemlimit v1.0.0 // indirect
+	github.com/KimMachineGun/automemlimit v1.0.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
